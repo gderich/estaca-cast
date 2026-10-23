@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('estacaCast', {
   startLocal: () => ipcRenderer.invoke('local:start'),
   stopAll: () => ipcRenderer.invoke('local:stop-all'),
   openPlayer: () => ipcRenderer.invoke('local:open-player'),
+  downloadAndroid: () => ipcRenderer.invoke('android:download'),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   createQr: (text) => ipcRenderer.invoke('qr:create', text),
   startYoutube: (payload) => ipcRenderer.invoke('youtube:start', payload),
