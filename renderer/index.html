@@ -13,7 +13,7 @@
         <h1>ESTACA CAST</h1>
         <p>Transmissão local rápida + YouTube sem complicação</p>
       </div>
-      <div class="version" id="version">v0.2.0</div>
+      <div class="version" id="version">v0.3.0</div>
     </header>
 
     <section class="status-grid">
@@ -70,6 +70,17 @@
           <button id="openPlayerBtn">Abrir player</button>
           <button id="qrBtn">QR Code</button>
         </div>
+      </div>
+
+      <div class="panel">
+        <h2>4. Câmera móvel (Android)</h2>
+        <p>Abra o <b>Estaca Cast Camera</b> no celular conectado à mesma rede. O app encontra este computador automaticamente e envia a câmera por SRT.</p>
+        <div class="copybox"><code id="cameraRtspUrl">rtsp://localhost:8554/camera</code></div>
+        <p class="muted">Status da câmera: <b id="cameraStatus">Desconectada</b></p>
+        <div class="button-row">
+          <button id="copyCameraBtn">Copiar fonte para o OBS</button>
+        </div>
+        <p class="hint">No OBS: <b>Fontes → + → Fonte de mídia</b>, desmarque <b>Arquivo local</b> e cole o endereço acima em <b>Entrada</b>.</p>
       </div>
     </section>
 
