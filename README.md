@@ -20,35 +20,34 @@ Aplicativo Windows para distribuir a saída do OBS em baixa latência na rede lo
   </a>
 </p>
 
-> Os botões de download sempre apontam para os arquivos da versão pública mais recente. As releases Android usam uma assinatura persistente, permitindo atualização normal por cima das versões anteriores assinadas com a mesma chave.
+> Os botões de download sempre apontam para os arquivos da versão pública mais recente. As Releases Android usam assinatura persistente, permitindo atualização por cima das versões anteriores assinadas com a mesma chave.
 
 ## O que ele faz
 
-O Estaca Cast foi criado para simplificar um fluxo que normalmente exige vários programas, comandos e configurações manuais. A ideia é permitir que um operador consiga preparar o computador, configurar o OBS, distribuir o vídeo para TVs, notebooks e celulares na mesma rede, usar um celular Android como câmera sem fio e, se quiser, iniciar uma transmissão pública pelo YouTube usando uma única interface.
+O Estaca Cast foi criado para simplificar um fluxo que normalmente exige vários programas, comandos e configurações manuais. A ideia é permitir que um operador prepare o computador, configure o OBS, distribua o vídeo para TVs, notebooks e celulares na mesma rede, use um celular Android como câmera sem fio e, se quiser, inicie uma transmissão pública pelo YouTube usando uma única interface.
 
 ## Funcionalidades atuais
 
-- Interface desktop via Electron, com textos UTF-8 corretos.
-- Instalador Windows `.exe` via NSIS.
+- Interface desktop via Electron e instalador NSIS `.exe`.
 - Assistente de preparação do computador.
-- Download e gerenciamento do MediaMTX.
-- Detecção e instalação do FFmpeg.
-- Orientação passo a passo para configurar WHIP no OBS.
-- Distribuição local por WebRTC através do MediaMTX.
+- Download e gerenciamento do MediaMTX e FFmpeg.
+- OBS principal por WHIP.
+- Distribuição local por WebRTC.
 - Detecção automática do IPv4 local.
-- Link e QR Code para receptores na mesma rede.
+- QR Code para receptores locais.
 - Aplicativo Android complementar para câmera móvel.
 - Descoberta automática do Estaca Cast na rede local via UDP e fallback por QR.
-- Leitor de QR integrado ao próprio Estaca Cast Camera.
-- Envio da câmera Android por SRT para o MediaMTX.
-- Standby AMOLED automático durante a transmissão móvel.
-- Botão no aplicativo desktop para baixar o APK mais recente.
-- Integração com OBS WebSocket para criar automaticamente a fonte `Estaca Cast Camera` na cena atual.
+- Leitor QR integrado no Estaca Cast Camera.
+- Envio da câmera Android por SRT.
+- **Foreground Service** no Android para continuar transmitindo com Home ou tela apagada.
+- WakeLock + WiFiLock durante a transmissão móvel.
+- Desligamento automático opcional da tela 5 s após a conexão.
+- Verificação e download de atualização dentro do próprio app Android.
+- Integração com OBS WebSocket para criar/reutilizar automaticamente a fonte `Estaca Cast Camera` na cena atual.
 - Encaminhamento opcional para YouTube via FFmpeg/RTMPS.
 - Diagnóstico de MediaMTX, OBS, câmera e YouTube.
-- Configuração automática das portas necessárias no Firewall do Windows.
+- Configuração automática das portas no Firewall do Windows.
 - Atualização automática do aplicativo Windows pelo GitHub Releases.
-- Estrutura reservada para importar perfis e coleções de cenas do OBS.
 
 ## Fluxo
 
@@ -66,31 +65,61 @@ MediaMTX (conferencia)
 
 ## Início rápido
 
-1. Baixe e instale o **Estaca Cast para Windows** pelo botão no topo desta página.
-2. Abra o Estaca Cast e clique em **Preparar computador**.
-3. Clique em **Configurar firewall** e confirme a janela de administrador do Windows.
+1. Baixe e instale o **Estaca Cast para Windows**.
+2. Clique em **Preparar computador**.
+3. Clique em **Configurar firewall** e confirme o UAC.
 4. Configure o OBS para enviar por WHIP para `http://localhost:8889/conferencia/whip`.
-5. Clique em **Iniciar local** no Estaca Cast.
-6. Abra o link ou QR Code em TVs, notebooks e celulares conectados à mesma rede.
-7. Para usar um celular como câmera, baixe o **Estaca Cast Camera**, abra o APK no Android e permita o acesso à câmera.
+5. Clique em **Iniciar local**.
+6. Para usar um celular como câmera, instale o **Estaca Cast Camera** no Android.
+7. O Android tenta localizar o PC automaticamente; se necessário, use **QR de pareamento** no PC + **LER QR** no celular.
+8. Toque em **CONECTAR CÂMERA**.
+9. No PC, clique em **Adicionar câmera ao OBS**.
 
 ## Câmera Android
 
-O Estaca Cast Camera foi feito para funcionar sem digitar IP, porta ou Stream ID manualmente.
+O Estaca Cast Camera funciona sem digitar IP, porta ou Stream ID manualmente.
 
 Com o computador e o celular na mesma rede:
 
 1. No Estaca Cast para Windows, clique em **Configurar firewall**.
-2. No próprio Estaca Cast, use o botão **Baixar APK Android**, ou baixe pelo botão no topo deste README.
-3. Instale o APK no Android e conceda permissão para usar a câmera.
-4. Abra o Estaca Cast Camera. Ele procura automaticamente o computador na rede.
-5. Se a descoberta falhar, no PC clique em **QR de pareamento** e no Android use **LER QR** dentro do próprio aplicativo.
-6. Conecte a câmera.
-7. Com o OBS aberto, clique em **Adicionar câmera ao OBS** no Estaca Cast. A fonte `Estaca Cast Camera` será criada ou reutilizada automaticamente na cena atual.
+2. Instale o APK Android e conceda permissão para usar a câmera.
+3. Abra o Estaca Cast Camera. Ele tenta localizar o computador automaticamente.
+4. Se a descoberta falhar, no PC clique em **QR de pareamento** e no Android use **LER QR**.
+5. Toque em **CONECTAR CÂMERA**.
+6. Com o OBS aberto, clique em **Adicionar câmera ao OBS** no Estaca Cast.
 
 A integração com o OBS usa o `obs-websocket` incluído no OBS 28 ou superior. O Estaca Cast lê localmente a porta e a senha da configuração do OBS e conecta apenas em `127.0.0.1`. Se o servidor estiver desativado, abra **OBS → Ferramentas → Configurações do servidor WebSocket** e habilite o servidor. O padrão do OBS WebSocket 5.x é a porta `4455`.
 
-Se você preferir configurar manualmente, ainda pode adicionar uma **Fonte de mídia**, desmarcar **Arquivo local** e usar `rtsp://localhost:8554/camera` como entrada.
+Se preferir configurar manualmente, ainda é possível adicionar uma **Fonte de mídia**, desmarcar **Arquivo local** e usar `rtsp://localhost:8554/camera`.
+
+### Segundo plano e tela apagada
+
+A partir da versão **0.3.8**, a transmissão móvel roda em um **Foreground Service de câmera**. Depois de conectar, é possível:
+
+- apertar **Home**;
+- apagar/bloquear a tela;
+- voltar ao app depois;
+- manter câmera + SRT ativos enquanto a notificação do Estaca Cast Camera estiver presente.
+
+A notificação persistente também possui o botão **PARAR**.
+
+Para bloquear a tela automaticamente após 5 segundos:
+
+**Android → MENU → Ativar desligamento automático da tela**
+
+O Android solicita uma permissão opcional de Administrador do dispositivo usando somente a política de bloqueio (`force-lock`). Sem essa autorização, o app usa o fallback AMOLED (preto + brilho mínimo) e a tela também pode ser apagada manualmente pelo botão Power sem interromper a transmissão.
+
+### Atualização do Android
+
+O Estaca Cast Camera verifica automaticamente a Release mais recente ao abrir.
+
+Também existe:
+
+**MENU → Verificar atualização**
+
+Quando há nova versão, o APK é baixado pelo próprio Android e o instalador é aberto automaticamente. Por regra do Android, a confirmação final de instalação não pode ser silenciosa e continua dependendo do usuário. Na primeira vez, o sistema pode pedir autorização para o Estaca Cast Camera **instalar apps desconhecidos**.
+
+Como a assinatura é persistente, versões novas atualizam por cima e preservam os dados do aplicativo.
 
 ### Portas usadas
 
@@ -102,13 +131,13 @@ Se você preferir configurar manualmente, ainda pode adicionar uma **Fonte de m�
 | Descoberta automática da câmera | UDP | 37020 |
 | OBS WebSocket local | TCP | 4455 por padrão |
 
-O botão **Configurar firewall** cria as regras necessárias para os serviços do Estaca Cast. A porta do OBS WebSocket é usada somente em `localhost`, portanto não precisa ser exposta pelo Estaca Cast para a rede.
+O botão **Configurar firewall** cria as regras necessárias para os serviços do Estaca Cast. A porta do OBS WebSocket é usada somente em `localhost`.
 
-> A descoberta automática depende de o celular e o computador conseguirem se comunicar dentro da rede local. Redes com isolamento entre clientes/APs podem impedir a descoberta ou o vídeo mesmo quando ambos estão conectados ao mesmo Wi-Fi. Nesses casos, use o QR de pareamento.
+> A descoberta automática depende de o celular e o computador conseguirem se comunicar dentro da rede local. Redes com isolamento entre clientes/APs podem impedir a descoberta ou o vídeo. Nesses casos, use o QR de pareamento.
 
 ## OBS
 
-O próprio aplicativo mostra este procedimento:
+Para a transmissão principal:
 
 - Abra `Configurações → Transmissão`.
 - Serviço: `WHIP`.
@@ -117,13 +146,11 @@ O próprio aplicativo mostra este procedimento:
 - Clique em `Aplicar → OK`.
 - Na tela principal do OBS, clique em **Iniciar transmissão**.
 
-Para a câmera Android, o Estaca Cast também pode controlar o OBS local pelo WebSocket e criar automaticamente a Fonte de mídia apontando para `rtsp://localhost:8554/camera`.
+Para a câmera Android, o Estaca Cast pode controlar o OBS local pelo WebSocket e criar automaticamente a Fonte de mídia apontando para `rtsp://localhost:8554/camera`.
 
 ## YouTube
 
-O aplicativo também explica como obter a chave de transmissão no YouTube Studio e envia a transmissão ao YouTube sem interromper o modo local.
-
-O status **Enviando** no Estaca Cast significa que o FFmpeg está enviando dados. A confirmação final e a prévia aparecem no próprio YouTube Studio.
+O aplicativo explica como obter a chave no YouTube Studio e envia a transmissão ao YouTube sem interromper o modo local.
 
 ## Desenvolvimento
 
@@ -134,15 +161,8 @@ Requisitos:
 - Node.js 22+
 - npm
 
-Instalar dependências:
-
 ```powershell
 npm install
-```
-
-Executar em desenvolvimento:
-
-```powershell
 npm start
 ```
 
@@ -154,32 +174,22 @@ npm run build:win
 
 ### Android
 
-A aplicação Android fica em `android-camera/` e usa Java 17, Android Gradle Plugin 9.3.2 e Gradle 9.7.1. O build de validação é executado automaticamente por `.github/workflows/android-ci.yml`.
+A aplicação Android fica em `android-camera/` e usa Java 17, Android Gradle Plugin 9.3.2 e Gradle 9.7.1.
 
-## Releases e atualização automática
+## Releases
 
-O projeto usa GitHub Releases e `electron-updater`.
-
-Ao publicar uma versão, o workflow `.github/workflows/release.yml` gera e anexa à mesma Release:
+O workflow `.github/workflows/release.yml` publica na mesma Release:
 
 ```text
 EstacaCast-Setup.exe
 EstacaCast-Camera.apk
 ```
 
-Como os nomes dos assets são fixos, os botões no topo do README e o botão de download dentro do aplicativo continuam apontando sempre para a versão pública mais recente.
-
-O aplicativo Windows consulta as Releases do repositório e pode baixar novas versões automaticamente.
-
 ## Dados locais
-
-O Estaca Cast mantém ferramentas, configurações e logs em:
 
 ```text
 %LOCALAPPDATA%\EstacaCast
 ```
-
-Isso permite reaproveitar MediaMTX, FFmpeg e configurações entre atualizações do aplicativo.
 
 ## Próximos passos
 
