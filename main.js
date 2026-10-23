@@ -7,7 +7,12 @@ const dgram = require('dgram');
 const { spawn } = require('child_process');
 const QRCode = require('qrcode');
 const { createRuntime } = require('./services/runtime');
-const { addCameraToObs } = require('./services/obs');
+const {
+  addCameraToObs,
+  setCameraAudioSync,
+  normalizeAudioSyncMs,
+  DEFAULT_CAMERA_AUDIO_SYNC_MS,
+} = require('./services/obs');
 
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
@@ -49,6 +54,19 @@ function saveConfig(cfg) {
   fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
 }
 
+function getCameraAudioSyncMs() {
+  const cfg = loadConfig();
+  return normalizeAudioSyncMs(cfg.cameraAudioSyncMs ?? DEFAULT_CAMERA_AUDIO_SYNC_MS);
+}
+
+function saveCameraAudioSyncMs(value) {
+  const syncMs = normalizeAudioSyncMs(value);
+  const cfg = loadConfig();
+  cfg.cameraAudioSyncMs = syncMs;
+  saveConfig(cfg);
+  return syncMs;
+}
+
 function encryptSecret(text) {
   if (!text) return '';
   if (!safeStorage.isEncryptionAvailable()) return '';
@@ -83,6 +101,7 @@ async function sendState() {
   const state = await runtime.getState();
   state.version = app.getVersion();
   state.updateStatus = updateStatus;
+  state.cameraAudioSyncMs = getCameraAudioSyncMs();
   mainWindow.webContents.send('state:update', state);
 }
 
@@ -331,7 +350,12 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('state:get', async () => {
   const s = await runtime.getState();
-  return { ...s, version: app.getVersion(), updateStatus };
+  return {
+    ...s,
+    version: app.getVersion(),
+    updateStatus,
+    cameraAudioSyncMs: getCameraAudioSyncMs(),
+  };
 });
 
 ipcMain.handle('setup:prepare', async () => {
@@ -353,7 +377,7 @@ ipcMain.handle('obs:open', async () => {
   return { ok: true };
 });
 
-ipcMain.handle('obs:add-camera', async () => {
+ipcMain.handle('obs:add-camera', async (_e, payload) => {
   try {
     let s = await runtime.getState();
     if (!s.obsPath) return { ok: false, error: 'OBS não encontrado. Instale ou abra o OBS primeiro.' };
@@ -364,9 +388,24 @@ ipcMain.handle('obs:add-camera', async () => {
       await sendState();
     }
 
+    const audioSyncMs = saveCameraAudioSyncMs(payload?.audioSyncMs ?? getCameraAudioSyncMs());
     return await addCameraToObs({
       rtspUrl: s.cameraRtspUrl || 'rtsp://localhost:8554/camera',
+      audioSyncMs,
     });
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
+ipcMain.handle('obs:set-audio-sync', async (_e, payload) => {
+  try {
+    const s = await runtime.getState();
+    if (!s.obsPath) return { ok: false, error: 'OBS não encontrado. Abra o OBS primeiro.' };
+    const audioSyncMs = saveCameraAudioSyncMs(payload?.audioSyncMs ?? getCameraAudioSyncMs());
+    const result = await setCameraAudioSync({ audioSyncMs });
+    await sendState();
+    return result;
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }
