@@ -237,7 +237,7 @@ class MainActivity : Activity(), ConnectChecker {
         showStatus("Aponte para o QR de pareamento do Estaca Cast.")
 
         IntentIntegrator(this).apply {
-            setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)
+            setDesiredBarcodeFormats(listOf("QR_CODE"))
             setPrompt("Aponte para o QR de pareamento do Estaca Cast")
             setBeepEnabled(false)
             setOrientationLocked(false)
