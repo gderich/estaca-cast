@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('estacaCast', {
   configureFirewall: () => ipcRenderer.invoke('setup:firewall'),
   installOrOpenObs: () => ipcRenderer.invoke('obs:install-or-open'),
   openObs: () => ipcRenderer.invoke('obs:open'),
+  addCameraToObs: () => ipcRenderer.invoke('obs:add-camera'),
   startLocal: () => ipcRenderer.invoke('local:start'),
   stopAll: () => ipcRenderer.invoke('local:stop-all'),
   openPlayer: () => ipcRenderer.invoke('local:open-player'),
