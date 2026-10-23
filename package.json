@@ -29,7 +29,9 @@
       "services/**/*",
       "package.json"
     ],
-    "buildResources": "build",
+    "directories": {
+      "buildResources": "build"
+    },
     "asar": true,
     "win": {
       "icon": "build/icon.svg",
