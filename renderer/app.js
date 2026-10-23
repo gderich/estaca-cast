@@ -102,6 +102,30 @@ $('copyLocalBtn').onclick = () => window.estacaCast.copyText(currentState?.local
 $('openPlayerBtn').onclick = () => window.estacaCast.openPlayer();
 $('downloadAndroidBtn').onclick = () => window.estacaCast.downloadAndroid();
 $('copyCameraBtn').onclick = () => window.estacaCast.copyText(currentState?.cameraRtspUrl || $('cameraRtspUrl').textContent);
+$('addCameraObsBtn').onclick = async () => {
+  const btn = $('addCameraObsBtn');
+  const notice = $('cameraObsNotice');
+  const previous = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Adicionando…';
+  notice.textContent = 'Conectando ao OBS e preparando a fonte da câmera…';
+
+  try {
+    const r = await window.estacaCast.addCameraToObs();
+    if (r.ok) {
+      notice.textContent = r.message || 'Câmera adicionada ao OBS.';
+    } else {
+      notice.textContent = r.error || 'Não foi possível adicionar a câmera ao OBS.';
+      alert(r.error || 'Não foi possível adicionar a câmera ao OBS.');
+    }
+  } catch (error) {
+    notice.textContent = 'Erro ao adicionar a câmera ao OBS.';
+    alert(error?.message || String(error));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = previous;
+  }
+};
 $('qrBtn').onclick = async () => {
   const url = currentState?.localUrl || $('localUrl').textContent;
   await showQr({
@@ -127,7 +151,7 @@ $('cameraQrBtn').onclick = async () => {
   const pairUrl = `estacacast://pair?ip=${encodeURIComponent(state.localIp)}&port=${encodeURIComponent(state.cameraSrtPort || 8890)}&streamid=${encodeURIComponent(state.cameraStreamId || 'publish:camera')}&name=${encodeURIComponent(name)}`;
   await showQr({
     title: 'Parear câmera Android',
-    hint: 'O receptor da câmera já está ativo. No celular, abra a câmera ou Google Lens, leia este QR e toque no link Estaca Cast. Não é necessário digitar IP.',
+    hint: 'O receptor da câmera já está ativo. No Estaca Cast Camera, toque em LER QR e aponte para este código. Não é necessário digitar IP.',
     value: pairUrl,
   });
 };
