@@ -165,21 +165,94 @@ function setupAutoUpdater() {
   });
 }
 
+function runPowerShell(args) {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    const child = spawn('powershell.exe', args, {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    child.stdout.on('data', (data) => { stdout += String(data); });
+    child.stderr.on('data', (data) => { stderr += String(data); });
+    child.on('error', (error) => resolve({ code: -1, stdout, stderr: error.message }));
+    child.on('close', (code) => resolve({ code: Number(code ?? -1), stdout, stderr }));
+  });
+}
+
 async function configureFirewall() {
-  const command = [
+  const elevatedScript = `
+$ErrorActionPreference = 'Stop'
+try {
+  $rules = @(
+    @{ Name = 'Estaca Cast WebRTC TCP'; Protocol = 'TCP'; Ports = '8888,8889' },
+    @{ Name = 'Estaca Cast WebRTC UDP'; Protocol = 'UDP'; Ports = '8189' },
+    @{ Name = 'Estaca Cast SRT'; Protocol = 'UDP'; Ports = '8890' },
+    @{ Name = 'Estaca Cast Camera Discovery'; Protocol = 'UDP'; Ports = '37020' }
+  )
+
+  foreach ($rule in $rules) {
+    Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue |
+      Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    New-NetFirewallRule -DisplayName $rule.Name -Direction Inbound -Action Allow -Protocol $rule.Protocol -LocalPort $rule.Ports -Profile Any | Out-Null
+  }
+
+  exit 0
+} catch {
+  Write-Error $_.Exception.Message
+  exit 1
+}
+`;
+
+  const encoded = Buffer.from(elevatedScript, 'utf16le').toString('base64');
+  const launcher = [
     "$ErrorActionPreference='Stop'",
-    "Get-NetFirewallRule -DisplayName 'Estaca Cast WebRTC TCP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
-    "Get-NetFirewallRule -DisplayName 'Estaca Cast WebRTC UDP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
-    "Get-NetFirewallRule -DisplayName 'Estaca Cast SRT' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
-    "Get-NetFirewallRule -DisplayName 'Estaca Cast Camera Discovery' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
-    "New-NetFirewallRule -DisplayName 'Estaca Cast WebRTC TCP' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8889,8888 | Out-Null",
-    "New-NetFirewallRule -DisplayName 'Estaca Cast WebRTC UDP' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 8189 | Out-Null",
-    "New-NetFirewallRule -DisplayName 'Estaca Cast SRT' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 8890 | Out-Null",
-    "New-NetFirewallRule -DisplayName 'Estaca Cast Camera Discovery' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 37020 | Out-Null",
+    'try {',
+    `  $p = Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -PassThru -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','${encoded}')`,
+    '  exit $p.ExitCode',
+    '} catch {',
+    '  if ($_.Exception.NativeErrorCode -eq 1223) { exit 1223 }',
+    '  exit 1',
+    '}',
   ].join('; ');
-  const psArgs = `-NoProfile -ExecutionPolicy Bypass -Command \"${command.replace(/\"/g, '\\\"')}\"`;
-  spawn('powershell.exe', ['-NoProfile', '-Command', `Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList '${psArgs.replace(/'/g, "''")}'`], { windowsHide: true });
-  return { ok: true, message: 'O Windows exibirá a confirmação de administrador para liberar WebRTC, SRT e descoberta da câmera.' };
+
+  const result = await runPowerShell([
+    '-NoProfile',
+    '-ExecutionPolicy', 'Bypass',
+    '-Command', launcher,
+  ]);
+
+  if (result.code !== 0) {
+    if (result.code === 1223) {
+      return { ok: false, error: 'A confirmação de administrador foi cancelada. Nenhuma alteração foi confirmada.' };
+    }
+    return {
+      ok: false,
+      error: `Não foi possível configurar o Firewall do Windows.${result.stderr.trim() ? `\n\n${result.stderr.trim()}` : ''}`,
+    };
+  }
+
+  const ruleNames = [
+    'Estaca Cast WebRTC TCP',
+    'Estaca Cast WebRTC UDP',
+    'Estaca Cast SRT',
+    'Estaca Cast Camera Discovery',
+  ];
+  const verifyScript = `$missing=@(); ${ruleNames.map((name) => `if (-not (Get-NetFirewallRule -DisplayName '${name}' -ErrorAction SilentlyContinue)) { $missing += '${name}' }`).join('; ')}; if ($missing.Count -gt 0) { Write-Output ($missing -join '|'); exit 2 }; exit 0`;
+  const verification = await runPowerShell(['-NoProfile', '-Command', verifyScript]);
+
+  if (verification.code !== 0) {
+    return {
+      ok: false,
+      error: `O PowerShell terminou, mas algumas regras não foram encontradas. Tente novamente como administrador.${verification.stdout.trim() ? `\n\nAusentes: ${verification.stdout.trim().replace(/\|/g, ', ')}` : ''}`,
+    };
+  }
+
+  return {
+    ok: true,
+    message: 'Firewall configurado com sucesso. WebRTC, SRT e descoberta da câmera estão liberados.',
+  };
 }
 
 async function installOrOpenObs() {
