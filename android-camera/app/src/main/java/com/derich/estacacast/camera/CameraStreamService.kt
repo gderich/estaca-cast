@@ -43,6 +43,16 @@ class CameraStreamService : Service(), ConnectChecker {
         private const val NOTIFICATION_ID = 4307
         private const val AUTO_LOCK_DELAY_MS = 5_000L
 
+        // Perfil padrão voltado para Wi-Fi real de capela/hotspot.
+        // 180 ms + 1080p/4,5 Mbps se mostrou agressivo e pode deixar pacotes
+        // chegarem tarde, causando macroblocos/quadros H.264 corrompidos.
+        private const val SRT_LATENCY_MS = 450
+        private const val VIDEO_WIDTH = 1280
+        private const val VIDEO_HEIGHT = 720
+        private const val VIDEO_FPS = 30
+        private const val VIDEO_BITRATE = 3_000_000
+        private const val VIDEO_KEYFRAME_SECONDS = 1
+
         @Volatile var isActive: Boolean = false
             private set
         @Volatile var state: String = "idle"
@@ -127,17 +137,26 @@ class CameraStreamService : Service(), ConnectChecker {
             val c = SrtCamera2(applicationContext, this).also {
                 it.setVideoCodec(VideoCodec.H264)
                 it.streamClient.setOnlyVideo(true)
-                it.streamClient.setLatency(180)
+                it.streamClient.setLatency(SRT_LATENCY_MS)
                 it.streamClient.setReTries(20)
                 it.startPreview(if (frontCamera) CameraHelper.Facing.FRONT else CameraHelper.Facing.BACK)
             }
             camera = c
 
-            var prepared = c.prepareVideo(1920, 1080, 30, 4_500_000, 2, 0)
-            if (!prepared) prepared = c.prepareVideo(1280, 720, 30, 3_000_000, 2, 0)
+            var prepared = c.prepareVideo(
+                VIDEO_WIDTH,
+                VIDEO_HEIGHT,
+                VIDEO_FPS,
+                VIDEO_BITRATE,
+                VIDEO_KEYFRAME_SECONDS,
+                0,
+            )
+            if (!prepared) {
+                prepared = c.prepareVideo(960, 540, 30, 2_000_000, VIDEO_KEYFRAME_SECONDS, 0)
+            }
             if (!prepared) throw IllegalStateException("O encoder H.264 não pôde ser preparado.")
 
-            val url = "srt://$ip:$port?mode=caller&latency=180&streamid=$streamId&pkt_size=1316"
+            val url = "srt://$ip:$port?mode=caller&latency=$SRT_LATENCY_MS&streamid=$streamId&pkt_size=1316"
             publishState("connecting", "Conectando ao Estaca Cast…")
             c.startStream(url)
         } catch (e: Exception) {
@@ -271,8 +290,8 @@ class CameraStreamService : Service(), ConnectChecker {
     }
 
     override fun onConnectionSuccess() {
-        publishState("connected", "● CÂMERA CONECTADA • pode apagar a tela")
-        updateNotification("Transmitindo • tela pode ficar desligada")
+        publishState("connected", "● CÂMERA CONECTADA • 720p30 estável • pode apagar a tela")
+        updateNotification("Transmitindo em 720p30 • tela pode ficar desligada")
         scheduleScreenLock()
     }
 
