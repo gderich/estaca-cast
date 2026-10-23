@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estaca Cast</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>ESTACA CAST</h1>
+        <p>Transmissão local rápida + YouTube sem complicação</p>
+      </div>
+      <div class="version" id="version">v0.2.0</div>
+    </header>
+
+    <section class="status-grid">
+      <article class="status-card"><span>Ferramentas</span><strong id="statusTools">Verificando…</strong></article>
+      <article class="status-card"><span>MediaMTX</span><strong id="statusMedia">Parado</strong></article>
+      <article class="status-card"><span>OBS</span><strong id="statusObs">Verificando…</strong></article>
+      <article class="status-card"><span>YouTube</span><strong id="statusYoutube">Desativado</strong></article>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="inicio">Início</button>
+      <button class="tab" data-tab="youtube">YouTube</button>
+      <button class="tab" data-tab="diagnostico">Diagnóstico</button>
+      <button class="tab" data-tab="obs">OBS</button>
+    </nav>
+
+    <section class="tab-panel active" id="tab-inicio">
+      <div class="panel">
+        <h2>1. Preparar o computador</h2>
+        <p>O Estaca Cast verifica e instala automaticamente MediaMTX e FFmpeg. Se o OBS não estiver instalado, também pode iniciar a instalação.</p>
+        <div class="button-row">
+          <button class="primary" id="prepareBtn">Preparar computador</button>
+          <button id="firewallBtn">Configurar firewall</button>
+          <button id="obsInstallBtn">Instalar/abrir OBS</button>
+        </div>
+        <div class="progress-wrap"><div class="progress" id="setupProgress"></div></div>
+        <small id="setupText">Aguardando.</small>
+      </div>
+
+      <div class="panel">
+        <h2>2. Configurar e iniciar o OBS</h2>
+        <ol class="steps">
+          <li>Abra o <b>OBS</b> e vá em <b>Configurações → Transmissão</b>.</li>
+          <li>Em <b>Serviço</b>, escolha <b>WHIP</b>.</li>
+          <li>Cole o endereço abaixo no campo <b>Servidor</b> e deixe token/chave vazio.</li>
+        </ol>
+        <div class="copybox"><code id="whipUrl">http://localhost:8889/conferencia/whip</code></div>
+        <div class="button-row">
+          <button id="copyWhipBtn">Copiar endereço WHIP</button>
+          <button id="openObsBtn">Abrir OBS</button>
+        </div>
+        <p class="hint">Depois clique em <b>Aplicar → OK</b> e, na tela principal do OBS, clique em <b>Iniciar transmissão</b>. Quando o vídeo chegar, o status OBS no topo muda para <b>Transmitindo</b>.</p>
+      </div>
+
+      <div class="panel">
+        <h2>3. Transmissão local</h2>
+        <p>O vídeo fica disponível para TVs, notebooks e celulares na mesma rede, com baixa latência.</p>
+        <div class="copybox"><code id="localUrl">http://127.0.0.1:8889/conferencia</code></div>
+        <p class="muted">Receptores WebRTC conectados: <b id="viewerCount">0</b></p>
+        <div class="button-row">
+          <button class="primary" id="startLocalBtn">Iniciar local</button>
+          <button class="danger" id="stopAllBtn">Parar tudo</button>
+          <button id="copyLocalBtn">Copiar link</button>
+          <button id="openPlayerBtn">Abrir player</button>
+          <button id="qrBtn">QR Code</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="tab-youtube">
+      <div class="panel">
+        <h2>Transmitir também para o YouTube</h2>
+        <p>O modo local continua funcionando mesmo se a internet ou o YouTube apresentarem problema.</p>
+        <div class="guide">
+          <h3>Como pegar a chave</h3>
+          <ol class="steps">
+            <li>Clique em <b>Abrir YouTube Studio</b>.</li>
+            <li>Vá em <b>Criar → Transmitir ao vivo</b>.</li>
+            <li>Na área <b>Configurações da transmissão</b>, localize <b>Chave da transmissão</b>.</li>
+            <li>Clique em <b>Copiar</b> e cole somente a chave abaixo.</li>
+            <li>Depois de iniciar aqui, volte ao YouTube. Aguarde a prévia aparecer e clique em <b>Transmitir ao vivo</b> se o início automático estiver desligado.</li>
+          </ol>
+        </div>
+        <button id="youtubeStudioBtn">Abrir YouTube Studio</button>
+        <label class="field-label" for="youtubeKey">Chave da transmissão</label>
+        <input id="youtubeKey" type="password" autocomplete="off" placeholder="Cole a chave aqui" />
+        <div class="inline-options">
+          <label><input id="rememberKey" type="checkbox" /> Lembrar neste computador usando a proteção do Windows</label>
+        </div>
+        <div class="button-row">
+          <button class="primary" id="startYoutubeBtn">Começar envio ao YouTube</button>
+          <button class="danger" id="stopYoutubeBtn">Parar YouTube</button>
+        </div>
+        <div class="notice" id="youtubeNotice">O status “Enviando” significa que o FFmpeg está enviando dados. A confirmação final da live aparece no próprio YouTube Studio.</div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="tab-diagnostico">
+      <div class="panel">
+        <h2>Diagnóstico</h2>
+        <div class="diag-grid" id="diagGrid"></div>
+        <div class="button-row">
+          <button id="openLogsBtn">Abrir pasta de logs</button>
+          <button id="checkUpdateBtn">Verificar atualizações</button>
+        </div>
+        <div class="notice" id="updateNotice">Atualizações: aguardando.</div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="tab-obs">
+      <div class="panel">
+        <h2>Perfis e cenas do OBS</h2>
+        <p>Esta área já está reservada para o pacote da conferência. Quando você exportar seu perfil e coleção de cenas do OBS, o Estaca Cast poderá instalar tudo para o usuário.</p>
+        <button id="importObsBtn">Selecionar pacote do OBS</button>
+        <div class="notice">Próxima etapa: importar perfil, coleção de cenas, fontes e configurações recomendadas sem apagar a configuração pessoal do usuário.</div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal hidden" id="qrModal">
+    <div class="modal-card">
+      <button class="modal-close" id="qrClose">×</button>
+      <h2>Abrir transmissão local</h2>
+      <img id="qrImage" alt="QR Code" />
+      <code id="qrText"></code>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
