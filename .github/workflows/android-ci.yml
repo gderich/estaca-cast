@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'android-camera/**'
+      - '.github/workflows/android-ci.yml'
 
 jobs:
   build-android:
@@ -29,9 +30,21 @@ jobs:
 
       - name: Compilar APK
         working-directory: android-camera
-        run: gradle :app:assembleDebug --no-daemon
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Salvar log do build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EstacaCast-Camera-build-log
+          path: android-camera/build.log
+          if-no-files-found: ignore
 
       - name: Salvar APK de teste
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: EstacaCast-Camera-debug
