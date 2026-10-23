@@ -76,13 +76,17 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
       is_local_file: false,
       input: rtspUrl,
       input_format: 'rtsp',
-      buffering_mb: 1,
+      // O RTSP viaja apenas dentro do próprio computador. Não precisamos de
+      // buffer de rede grande aqui; removê-lo reduz o atraso percebido.
+      buffering_mb: 0,
       reconnect_delay_sec: 2,
       hw_decode: true,
       clear_on_media_end: true,
       restart_on_activate: true,
       close_when_inactive: false,
       seekable: false,
+      // TCP no trecho MediaMTX → OBS evita artefatos por datagramas perdidos.
+      ffmpeg_options: 'rtsp_transport=tcp',
     };
 
     let inputExists = false;
