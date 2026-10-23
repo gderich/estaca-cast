@@ -13,7 +13,7 @@
         <h1>ESTACA CAST</h1>
         <p>Transmissão local rápida + YouTube sem complicação</p>
       </div>
-      <div class="version" id="version">v0.3.7</div>
+      <div class="version" id="version">v0.3.13</div>
     </header>
 
     <section class="status-grid">
@@ -84,6 +84,24 @@
           <button id="copyCameraBtn">Copiar fonte para o OBS</button>
         </div>
         <div class="notice" id="cameraObsNotice">O Estaca Cast pode criar automaticamente a fonte <b>Estaca Cast Camera</b> na cena atual do OBS.</div>
+
+        <div class="sync-card">
+          <div>
+            <h3>Sincronização de áudio e vídeo</h3>
+            <p class="muted">Como o vídeo do celular chega depois, atrasamos o <b>áudio</b> do OBS. O valor fica salvo neste computador.</p>
+          </div>
+          <div class="sync-controls">
+            <button type="button" data-sync-step="-100">−100 ms</button>
+            <button type="button" data-sync-step="-10">−10 ms</button>
+            <label class="sync-value">Atraso do áudio <input id="audioSyncMs" type="number" min="0" max="5000" step="10" value="600" /> ms</label>
+            <button type="button" data-sync-step="10">+10 ms</button>
+            <button type="button" data-sync-step="100">+100 ms</button>
+            <button type="button" id="resetAudioSyncBtn">Padrão 600 ms</button>
+            <button class="primary" type="button" id="applyAudioSyncBtn">Aplicar no OBS</button>
+          </div>
+          <div class="notice" id="audioSyncNotice">Valor atual: <b>+600 ms no áudio</b>. Faça uma palma diante da câmera e ajuste até o som coincidir com o movimento.</div>
+        </div>
+
         <p class="hint">No Android, use <b>LER QR</b> dentro do Estaca Cast Camera. Depois de conectar o celular, deixe o OBS aberto e clique em <b>Adicionar câmera ao OBS</b>. O Estaca Cast usa o WebSocket local do OBS e configura a fonte RTSP automaticamente.</p>
       </div>
     </section>
