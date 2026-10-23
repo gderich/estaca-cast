@@ -1,0 +1,59 @@
+{
+  "name": "estaca-cast",
+  "version": "0.2.0",
+  "description": "Distribuição local de baixa latência do OBS com MediaMTX e envio opcional ao YouTube.",
+  "main": "main.js",
+  "author": "Gabriel Derich",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win nsis",
+    "build:dir": "electron-builder --dir"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.8.9",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.derich.estacacast",
+    "productName": "Estaca Cast",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "services/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "artifactName": "EstacaCast-Setup-${version}.exe",
+      "uninstallDisplayName": "Estaca Cast"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "gderich",
+        "repo": "estaca-cast"
+      }
+    ]
+  }
+}
