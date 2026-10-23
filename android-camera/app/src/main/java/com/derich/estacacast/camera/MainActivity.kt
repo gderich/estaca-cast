@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +17,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.google.zxing.integration.android.IntentIntegrator
 import com.pedro.common.ConnectChecker
 import com.pedro.common.VideoCodec
 import com.pedro.library.srt.SrtCamera2
@@ -34,6 +36,7 @@ class MainActivity : Activity(), ConnectChecker {
     private lateinit var serverText: TextView
     private lateinit var connectButton: Button
     private lateinit var discoverButton: Button
+    private lateinit var qrButton: Button
     private lateinit var standbyOverlay: View
 
     private val executor = Executors.newSingleThreadExecutor()
@@ -46,6 +49,7 @@ class MainActivity : Activity(), ConnectChecker {
     private var prepared = false
     private var standbyActive = false
     private var originalBrightness = -1f
+    private var qrScannerActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,7 +111,7 @@ class MainActivity : Activity(), ConnectChecker {
         panel.addView(serverText)
 
         val fallbackText = TextView(this).apply {
-            text = "Se não encontrar: no PC use “QR de pareamento” e escaneie com a câmera/Google Lens do celular."
+            text = "Se não encontrar automaticamente, toque em LER QR e aponte para o QR de pareamento exibido no PC."
             setTextColor(Color.rgb(220, 185, 120))
             textSize = 12f
             setPadding(0, 0, 0, 12)
@@ -124,6 +128,12 @@ class MainActivity : Activity(), ConnectChecker {
             setOnClickListener { discoverServer() }
         }
         buttons.addView(discoverButton)
+
+        qrButton = Button(this).apply {
+            text = "LER QR"
+            setOnClickListener { startQrScanner() }
+        }
+        buttons.addView(qrButton)
 
         connectButton = Button(this).apply {
             text = "CONECTAR CÂMERA"
@@ -176,6 +186,10 @@ class MainActivity : Activity(), ConnectChecker {
 
     private fun handlePairIntent(intent: Intent?): Boolean {
         val uri = intent?.data ?: return false
+        return applyPairUri(uri)
+    }
+
+    private fun applyPairUri(uri: Uri): Boolean {
         if (uri.scheme != "estacacast" || uri.host != "pair") return false
 
         val ip = uri.getQueryParameter("ip")?.trim().orEmpty()
@@ -196,8 +210,71 @@ class MainActivity : Activity(), ConnectChecker {
         )
         serverText.text = "✓ Pareado por QR • $ip"
         connectButton.isEnabled = true
-        showStatus("Pareamento concluído. Pronto para conectar.")
+        showStatus("QR reconhecido. Pronto para conectar.")
         return true
+    }
+
+    private fun startQrScanner() {
+        if (streamingWanted || camera?.isStreaming == true) {
+            showStatus("O leitor QR fica disponível somente antes de conectar a câmera.", true)
+            return
+        }
+        if (qrScannerActive) return
+
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestCameraIfNeeded()
+            showStatus("Autorize a câmera e toque novamente em LER QR.", true)
+            return
+        }
+
+        standbyHandler.removeCallbacks(standbyRunnable)
+        runCatching {
+            if (camera?.isOnPreview == true) camera?.stopPreview()
+        }
+
+        qrScannerActive = true
+        qrButton.isEnabled = false
+        showStatus("Aponte para o QR de pareamento do Estaca Cast.")
+
+        IntentIntegrator(this).apply {
+            setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)
+            setPrompt("Aponte para o QR de pareamento do Estaca Cast")
+            setBeepEnabled(false)
+            setOrientationLocked(false)
+            initiateScan()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        val scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+        if (scanResult != null) {
+            qrScannerActive = false
+            qrButton.isEnabled = !streamingWanted
+
+            val contents = scanResult.contents
+            if (contents.isNullOrBlank()) {
+                showStatus("Leitura do QR cancelada.")
+            } else {
+                val uri = runCatching { Uri.parse(contents.trim()) }.getOrNull()
+                if (uri == null || !applyPairUri(uri)) {
+                    showStatus("Este QR não é um pareamento válido do Estaca Cast.", true)
+                }
+            }
+
+            resumePreviewAfterQr()
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    private fun resumePreviewAfterQr() {
+        preview.postDelayed({
+            runCatching {
+                if (camera?.isOnPreview != true) camera?.startPreview()
+            }.onFailure {
+                showStatus("Não foi possível restaurar a câmera: ${it.message}", true)
+            }
+        }, 300)
     }
 
     private fun requestCameraIfNeeded() {
@@ -244,19 +321,20 @@ class MainActivity : Activity(), ConnectChecker {
     }
 
     private fun discoverServer() {
+        if (streamingWanted || camera?.isStreaming == true) return
         discoverButton.isEnabled = false
         serverText.text = "Procurando Estaca Cast na rede..."
         executor.execute {
             val found = Discovery.find(applicationContext)
             runOnUiThread {
-                discoverButton.isEnabled = true
+                discoverButton.isEnabled = !streamingWanted
                 server = found
                 if (found != null) {
                     serverText.text = "✓ ${found.name} encontrado • ${found.ip}"
                     connectButton.isEnabled = true
                     showStatus("Pronto para conectar.")
                 } else {
-                    serverText.text = "PC não encontrado automaticamente. Use o QR de pareamento no Estaca Cast do PC."
+                    serverText.text = "PC não encontrado automaticamente. Use LER QR e o QR de pareamento no Estaca Cast do PC."
                     connectButton.isEnabled = false
                     showStatus("Descoberta automática indisponível nesta rede.", true)
                 }
@@ -293,11 +371,15 @@ class MainActivity : Activity(), ConnectChecker {
                 "?mode=caller&latency=180&streamid=${target.streamId}&pkt_size=1316"
 
             streamingWanted = true
+            qrButton.isEnabled = false
+            discoverButton.isEnabled = false
             showStatus("Conectando ao Estaca Cast...")
             c.startStream(url)
             connectButton.text = "PARAR"
         } catch (e: Exception) {
             streamingWanted = false
+            qrButton.isEnabled = true
+            discoverButton.isEnabled = true
             disableStandby()
             showStatus("Falha ao iniciar: ${e.message}", true)
         }
@@ -308,7 +390,9 @@ class MainActivity : Activity(), ConnectChecker {
         disableStandby()
         runCatching { camera?.stopStream() }
         connectButton.text = "CONECTAR CÂMERA"
-        showStatus("Transmissão parada.")
+        qrButton.isEnabled = true
+        discoverButton.isEnabled = true
+        showStatus("Transmissão parada. O leitor QR está disponível novamente.")
     }
 
     private fun scheduleStandby() {
@@ -381,6 +465,8 @@ class MainActivity : Activity(), ConnectChecker {
         showStatus("● CÂMERA CONECTADA • standby AMOLED em 5 s")
         runOnUiThread {
             connectButton.text = "PARAR"
+            qrButton.isEnabled = false
+            discoverButton.isEnabled = false
             scheduleStandby()
         }
     }
@@ -393,8 +479,11 @@ class MainActivity : Activity(), ConnectChecker {
             }.getOrDefault(false)
             if (!retried) {
                 runOnUiThread {
+                    streamingWanted = false
                     disableStandby()
                     connectButton.text = "CONECTAR CÂMERA"
+                    qrButton.isEnabled = true
+                    discoverButton.isEnabled = true
                     discoverServer()
                 }
             }
@@ -406,6 +495,10 @@ class MainActivity : Activity(), ConnectChecker {
             showStatus("Reconectando...", true)
         } else {
             disableStandby()
+            runOnUiThread {
+                qrButton.isEnabled = true
+                discoverButton.isEnabled = true
+            }
             showStatus("Desconectado.")
         }
     }
