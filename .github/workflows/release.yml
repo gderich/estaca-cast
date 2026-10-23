@@ -87,12 +87,30 @@ jobs:
         with:
           gradle-version: '9.7.1'
 
-      - name: Compilar APK Android
+      - name: Validar assinatura Android
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_B64" || { echo "ANDROID_KEYSTORE_BASE64 não configurado"; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo "ANDROID_KEYSTORE_PASSWORD não configurado"; exit 1; }
+          test -n "$KEY_ALIAS" || { echo "ANDROID_KEY_ALIAS não configurado"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "ANDROID_KEY_PASSWORD não configurado"; exit 1; }
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/estacacast-camera.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/estacacast-camera.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Compilar APK Android assinado
         working-directory: android-camera
-        run: gradle :app:assembleDebug --no-daemon
+        run: gradle :app:assembleRelease --no-daemon
 
       - name: Preparar APK
-        run: cp android-camera/app/build/outputs/apk/debug/app-debug.apk EstacaCast-Camera.apk
+        run: cp android-camera/app/build/outputs/apk/release/app-release.apk EstacaCast-Camera.apk
 
       - name: Definir tag da Release
         shell: bash
