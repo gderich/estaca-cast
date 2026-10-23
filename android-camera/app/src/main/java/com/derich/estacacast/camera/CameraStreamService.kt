@@ -43,14 +43,13 @@ class CameraStreamService : Service(), ConnectChecker {
         private const val NOTIFICATION_ID = 4307
         private const val AUTO_LOCK_DELAY_MS = 5_000L
 
-        // Perfil padrão voltado para Wi-Fi real de capela/hotspot.
-        // 180 ms + 1080p/4,5 Mbps se mostrou agressivo e pode deixar pacotes
-        // chegarem tarde, causando macroblocos/quadros H.264 corrompidos.
+        // Perfil compatível com os aparelhos que já funcionavam em 1080p.
+        // Mantemos SRT mais tolerante e bitrate menor para evitar corrupção de quadros.
         private const val SRT_LATENCY_MS = 450
-        private const val VIDEO_WIDTH = 1280
-        private const val VIDEO_HEIGHT = 720
+        private const val VIDEO_WIDTH = 1920
+        private const val VIDEO_HEIGHT = 1080
         private const val VIDEO_FPS = 30
-        private const val VIDEO_BITRATE = 3_000_000
+        private const val VIDEO_BITRATE = 3_500_000
         private const val VIDEO_KEYFRAME_SECONDS = 1
 
         @Volatile var isActive: Boolean = false
@@ -143,16 +142,17 @@ class CameraStreamService : Service(), ConnectChecker {
             }
             camera = c
 
+            val rotation = CameraHelper.getCameraOrientation(applicationContext)
             var prepared = c.prepareVideo(
                 VIDEO_WIDTH,
                 VIDEO_HEIGHT,
                 VIDEO_FPS,
                 VIDEO_BITRATE,
                 VIDEO_KEYFRAME_SECONDS,
-                0,
+                rotation,
             )
             if (!prepared) {
-                prepared = c.prepareVideo(960, 540, 30, 2_000_000, VIDEO_KEYFRAME_SECONDS, 0)
+                prepared = c.prepareVideo(1280, 720, 30, 3_000_000, VIDEO_KEYFRAME_SECONDS, rotation)
             }
             if (!prepared) throw IllegalStateException("O encoder H.264 não pôde ser preparado.")
 
@@ -290,8 +290,8 @@ class CameraStreamService : Service(), ConnectChecker {
     }
 
     override fun onConnectionSuccess() {
-        publishState("connected", "● CÂMERA CONECTADA • 720p30 estável • pode apagar a tela")
-        updateNotification("Transmitindo em 720p30 • tela pode ficar desligada")
+        publishState("connected", "● CÂMERA CONECTADA • 1080p30 estável • pode apagar a tela")
+        updateNotification("Transmitindo em 1080p30 • tela pode ficar desligada")
         scheduleScreenLock()
     }
 
