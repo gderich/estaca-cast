@@ -31,6 +31,7 @@ jobs:
         run: |
           $version = node -p "require('./package.json').version"
           $tag = "v$version"
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
           "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -45,8 +46,25 @@ jobs:
       - name: Instalar dependências
         run: npm install
 
-      - name: Build e publicar instalador
-        run: npm run build:win -- --publish always
+      - name: Compilar instalador Windows
+        run: npm run build:win -- --publish never
+
+      - name: Criar Release se necessário
+        shell: pwsh
+        run: |
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --title $env:APP_VERSION --target $env:GITHUB_SHA --repo $env:GITHUB_REPOSITORY
+          }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar arquivos Windows
+        shell: pwsh
+        run: |
+          $files = @('dist/EstacaCast-Setup.exe', 'dist/EstacaCast-Setup.exe.blockmap')
+          if (Test-Path 'dist/latest.yml') { $files += 'dist/latest.yml' }
+          gh release upload $env:RELEASE_TAG @files --clobber --repo $env:GITHUB_REPOSITORY
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
