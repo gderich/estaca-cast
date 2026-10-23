@@ -52,7 +52,8 @@
       {
         "provider": "github",
         "owner": "gderich",
-        "repo": "estaca-cast"
+        "repo": "estaca-cast",
+        "releaseType": "release"
       }
     ]
   }
