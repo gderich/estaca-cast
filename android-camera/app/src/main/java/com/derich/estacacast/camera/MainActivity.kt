@@ -6,7 +6,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
@@ -23,6 +26,7 @@ class MainActivity : Activity(), ConnectChecker {
 
     companion object {
         private const val CAMERA_PERMISSION = 1001
+        private const val STANDBY_DELAY_MS = 5_000L
     }
 
     private lateinit var preview: OpenGlView
@@ -30,16 +34,23 @@ class MainActivity : Activity(), ConnectChecker {
     private lateinit var serverText: TextView
     private lateinit var connectButton: Button
     private lateinit var discoverButton: Button
+    private lateinit var standbyOverlay: View
 
     private val executor = Executors.newSingleThreadExecutor()
+    private val standbyHandler = Handler(Looper.getMainLooper())
+    private val standbyRunnable = Runnable { enterStandby() }
+
     private var camera: SrtCamera2? = null
     private var server: EstacaCastServer? = null
     private var streamingWanted = false
     private var prepared = false
+    private var standbyActive = false
+    private var originalBrightness = -1f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        originalBrightness = window.attributes.screenBrightness
         buildUi()
         requestCameraIfNeeded()
         if (!handlePairIntent(intent)) discoverServer()
@@ -143,6 +154,22 @@ class MainActivity : Activity(), ConnectChecker {
             topMargin = 22
         }
         root.addView(panel, panelParams)
+
+        standbyOverlay = View(this).apply {
+            setBackgroundColor(Color.BLACK)
+            visibility = View.GONE
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Tela em standby. Toque para voltar."
+            setOnClickListener { wakeFromStandby() }
+        }
+        root.addView(
+            standbyOverlay,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        )
 
         setContentView(root)
     }
@@ -271,15 +298,70 @@ class MainActivity : Activity(), ConnectChecker {
             connectButton.text = "PARAR"
         } catch (e: Exception) {
             streamingWanted = false
+            disableStandby()
             showStatus("Falha ao iniciar: ${e.message}", true)
         }
     }
 
     private fun stopStreaming() {
         streamingWanted = false
+        disableStandby()
         runCatching { camera?.stopStream() }
         connectButton.text = "CONECTAR CÂMERA"
         showStatus("Transmissão parada.")
+    }
+
+    private fun scheduleStandby() {
+        standbyHandler.removeCallbacks(standbyRunnable)
+        if (streamingWanted && camera?.isStreaming == true) {
+            standbyHandler.postDelayed(standbyRunnable, STANDBY_DELAY_MS)
+        }
+    }
+
+    private fun enterStandby() {
+        if (!streamingWanted || camera?.isStreaming != true) return
+        standbyActive = true
+        standbyOverlay.visibility = View.VISIBLE
+
+        val params = window.attributes
+        params.screenBrightness = 0.01f
+        window.attributes = params
+
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+    }
+
+    private fun wakeFromStandby() {
+        standbyHandler.removeCallbacks(standbyRunnable)
+        if (standbyActive) {
+            standbyActive = false
+            standbyOverlay.visibility = View.GONE
+
+            val params = window.attributes
+            params.screenBrightness = originalBrightness
+            window.attributes = params
+
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        }
+        scheduleStandby()
+    }
+
+    private fun disableStandby() {
+        standbyHandler.removeCallbacks(standbyRunnable)
+        standbyActive = false
+        standbyOverlay.visibility = View.GONE
+
+        val params = window.attributes
+        params.screenBrightness = originalBrightness
+        window.attributes = params
+
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
     }
 
     private fun showStatus(message: String, error: Boolean = false) {
@@ -296,8 +378,11 @@ class MainActivity : Activity(), ConnectChecker {
     }
 
     override fun onConnectionSuccess() {
-        showStatus("● CÂMERA CONECTADA")
-        runOnUiThread { connectButton.text = "PARAR" }
+        showStatus("● CÂMERA CONECTADA • standby AMOLED em 5 s")
+        runOnUiThread {
+            connectButton.text = "PARAR"
+            scheduleStandby()
+        }
     }
 
     override fun onConnectionFailed(reason: String) {
@@ -308,6 +393,7 @@ class MainActivity : Activity(), ConnectChecker {
             }.getOrDefault(false)
             if (!retried) {
                 runOnUiThread {
+                    disableStandby()
                     connectButton.text = "CONECTAR CÂMERA"
                     discoverServer()
                 }
@@ -319,6 +405,7 @@ class MainActivity : Activity(), ConnectChecker {
         if (streamingWanted) {
             showStatus("Reconectando...", true)
         } else {
+            disableStandby()
             showStatus("Desconectado.")
         }
     }
@@ -333,6 +420,7 @@ class MainActivity : Activity(), ConnectChecker {
 
     override fun onDestroy() {
         streamingWanted = false
+        standbyHandler.removeCallbacksAndMessages(null)
         runCatching {
             if (camera?.isStreaming == true) camera?.stopStream()
             if (camera?.isOnPreview == true) camera?.stopPreview()
