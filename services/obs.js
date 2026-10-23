@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { OBSWebSocket } = require('obs-websocket-js');
 
+// O vídeo do celular passa por encoder → Wi-Fi/SRT → MediaMTX → RTSP → OBS.
+// As entradas de áudio locais chegam praticamente direto ao OBS. Este atraso
+// inicial aproxima os dois caminhos sem o operador precisar abrir as
+// propriedades avançadas de áudio do OBS.
+const CAMERA_AUDIO_SYNC_MS = 600;
+
 function readObsWebSocketConfig() {
   const candidates = [];
   if (process.env.APPDATA) {
@@ -45,6 +51,37 @@ function explainConnectionError(error, config) {
   }
 
   return message || 'Não foi possível controlar o OBS pelo WebSocket.';
+}
+
+function isLiveAudioInputKind(kind) {
+  const value = String(kind || '').toLowerCase();
+  return value.includes('wasapi_input_capture') ||
+    value.includes('coreaudio_input_capture') ||
+    value.includes('pulse_input_capture') ||
+    value.includes('alsa_input_capture');
+}
+
+async function applyCameraAudioSync(obs) {
+  const adjusted = [];
+
+  try {
+    const list = await obs.call('GetInputList');
+    for (const input of list.inputs || []) {
+      const inputName = String(input.inputName || '');
+      if (!inputName || inputName === 'Estaca Cast Camera') continue;
+      if (!isLiveAudioInputKind(input.inputKind || input.unversionedInputKind)) continue;
+
+      try {
+        await obs.call('SetInputAudioSyncOffset', {
+          inputName,
+          inputAudioSyncOffset: CAMERA_AUDIO_SYNC_MS,
+        });
+        adjusted.push(inputName);
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  return adjusted;
 }
 
 async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {}) {
@@ -122,14 +159,20 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
     }
 
     const item = await obs.call('GetSceneItemId', { sceneName, sourceName: inputName });
+    const syncedAudioInputs = await applyCameraAudioSync(obs);
+    const syncText = syncedAudioInputs.length
+      ? ` Áudio sincronizado em +${CAMERA_AUDIO_SYNC_MS} ms: ${syncedAudioInputs.join(', ')}.`
+      : ' Nenhuma fonte de entrada de áudio compatível foi encontrada para sincronização automática.';
 
     return {
       ok: true,
-      message: `Câmera adicionada à cena “${sceneName}” como “${inputName}”.`,
+      message: `Câmera adicionada à cena “${sceneName}” como “${inputName}”.${syncText}`,
       sceneName,
       inputName,
       sceneItemId: item.sceneItemId,
       rtspUrl,
+      audioSyncMs: CAMERA_AUDIO_SYNC_MS,
+      syncedAudioInputs,
     };
   } catch (error) {
     return { ok: false, error: explainConnectionError(error, config) };
