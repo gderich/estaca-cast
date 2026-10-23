@@ -66,6 +66,7 @@ $('startLocalBtn').onclick = async () => { const r = await window.estacaCast.sta
 $('stopAllBtn').onclick = async () => { await window.estacaCast.stopAll(); refresh(); };
 $('copyLocalBtn').onclick = () => window.estacaCast.copyText(currentState?.localUrl || $('localUrl').textContent);
 $('openPlayerBtn').onclick = () => window.estacaCast.openPlayer();
+$('downloadAndroidBtn').onclick = () => window.estacaCast.downloadAndroid();
 $('copyCameraBtn').onclick = () => window.estacaCast.copyText(currentState?.cameraRtspUrl || $('cameraRtspUrl').textContent);
 $('qrBtn').onclick = async () => {
   const url = currentState?.localUrl || $('localUrl').textContent;
