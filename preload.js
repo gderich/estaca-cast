@@ -45,23 +45,12 @@ try {
   )
 
   foreach ($legacy in $legacyNames) {
-    Get-NetFirewallRule -DisplayName $legacy -ErrorAction SilentlyContinue |
-      Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    Get-NetFirewallRule -DisplayName $legacy -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
   }
 
   foreach ($rule in $rules) {
-    Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue |
-      Remove-NetFirewallRule -ErrorAction SilentlyContinue
-
-    New-NetFirewallRule \
-      -DisplayName $rule.Name \
-      -Direction Inbound \
-      -Action Allow \
-      -Protocol $rule.Protocol \
-      -LocalPort $rule.Port \
-      -Profile Any \
-      -Enabled True \
-      -ErrorAction Stop | Out-Null
+    Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    New-NetFirewallRule -DisplayName $rule.Name -Direction Inbound -Action Allow -Protocol $rule.Protocol -LocalPort $rule.Port -Profile Any -Enabled True -ErrorAction Stop | Out-Null
   }
 
   Set-Content -LiteralPath $resultFile -Value 'OK' -Encoding UTF8
