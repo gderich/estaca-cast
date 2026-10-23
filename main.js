@@ -182,25 +182,42 @@ function runPowerShell(args) {
 }
 
 async function configureFirewall() {
+  const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const resultFile = path.join(app.getPath('temp'), `estacacast-firewall-${token}.txt`);
+  const escapedResult = resultFile.replace(/'/g, "''");
+
   const elevatedScript = `
 $ErrorActionPreference = 'Stop'
+$resultFile = '${escapedResult}'
 try {
   $rules = @(
-    @{ Name = 'Estaca Cast WebRTC TCP'; Protocol = 'TCP'; Ports = '8888,8889' },
-    @{ Name = 'Estaca Cast WebRTC UDP'; Protocol = 'UDP'; Ports = '8189' },
-    @{ Name = 'Estaca Cast SRT'; Protocol = 'UDP'; Ports = '8890' },
-    @{ Name = 'Estaca Cast Camera Discovery'; Protocol = 'UDP'; Ports = '37020' }
+    @{ Name = 'Estaca Cast HLS TCP 8888'; Protocol = 'TCP'; Port = 8888 },
+    @{ Name = 'Estaca Cast WebRTC TCP 8889'; Protocol = 'TCP'; Port = 8889 },
+    @{ Name = 'Estaca Cast WebRTC UDP 8189'; Protocol = 'UDP'; Port = 8189 },
+    @{ Name = 'Estaca Cast SRT UDP 8890'; Protocol = 'UDP'; Port = 8890 },
+    @{ Name = 'Estaca Cast Discovery UDP 37020'; Protocol = 'UDP'; Port = 37020 }
   )
 
-  foreach ($rule in $rules) {
-    Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue |
-      Remove-NetFirewallRule -ErrorAction SilentlyContinue
-    New-NetFirewallRule -DisplayName $rule.Name -Direction Inbound -Action Allow -Protocol $rule.Protocol -LocalPort $rule.Ports -Profile Any | Out-Null
+  $legacyNames = @(
+    'Estaca Cast WebRTC TCP',
+    'Estaca Cast WebRTC UDP',
+    'Estaca Cast SRT',
+    'Estaca Cast Camera Discovery'
+  )
+
+  foreach ($legacy in $legacyNames) {
+    Get-NetFirewallRule -DisplayName $legacy -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
   }
 
+  foreach ($rule in $rules) {
+    Get-NetFirewallRule -DisplayName $rule.Name -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    New-NetFirewallRule -DisplayName $rule.Name -Direction Inbound -Action Allow -Protocol $rule.Protocol -LocalPort $rule.Port -Profile Any -Enabled True -ErrorAction Stop | Out-Null
+  }
+
+  Set-Content -LiteralPath $resultFile -Value 'OK' -Encoding UTF8
   exit 0
 } catch {
-  Write-Error $_.Exception.Message
+  Set-Content -LiteralPath $resultFile -Value ('ERROR|' + $_.Exception.Message) -Encoding UTF8
   exit 1
 }
 `;
@@ -209,10 +226,11 @@ try {
   const launcher = [
     "$ErrorActionPreference='Stop'",
     'try {',
-    `  $p = Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -PassThru -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','${encoded}')`,
+    `  $p = Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}'`,
     '  exit $p.ExitCode',
     '} catch {',
     '  if ($_.Exception.NativeErrorCode -eq 1223) { exit 1223 }',
+    '  Write-Error $_.Exception.Message',
     '  exit 1',
     '}',
   ].join('; ');
@@ -223,21 +241,30 @@ try {
     '-Command', launcher,
   ]);
 
-  if (result.code !== 0) {
-    if (result.code === 1223) {
-      return { ok: false, error: 'A confirmação de administrador foi cancelada. Nenhuma alteração foi confirmada.' };
-    }
+  let details = '';
+  try {
+    if (fs.existsSync(resultFile)) details = fs.readFileSync(resultFile, 'utf8').trim();
+  } catch (_) {}
+  try { if (fs.existsSync(resultFile)) fs.unlinkSync(resultFile); } catch (_) {}
+
+  if (result.code === 1223) {
+    return { ok: false, error: 'A confirmação de administrador foi cancelada.' };
+  }
+
+  if (result.code !== 0 || (details && !details.startsWith('OK'))) {
+    const detailMessage = details.startsWith('ERROR|') ? details.slice(6) : (result.stderr.trim() || details);
     return {
       ok: false,
-      error: `Não foi possível configurar o Firewall do Windows.${result.stderr.trim() ? `\n\n${result.stderr.trim()}` : ''}`,
+      error: `Não foi possível configurar o Firewall do Windows.${detailMessage ? `\n\nDetalhes: ${detailMessage}` : ''}`,
     };
   }
 
   const ruleNames = [
-    'Estaca Cast WebRTC TCP',
-    'Estaca Cast WebRTC UDP',
-    'Estaca Cast SRT',
-    'Estaca Cast Camera Discovery',
+    'Estaca Cast HLS TCP 8888',
+    'Estaca Cast WebRTC TCP 8889',
+    'Estaca Cast WebRTC UDP 8189',
+    'Estaca Cast SRT UDP 8890',
+    'Estaca Cast Discovery UDP 37020',
   ];
   const verifyScript = `$missing=@(); ${ruleNames.map((name) => `if (-not (Get-NetFirewallRule -DisplayName '${name}' -ErrorAction SilentlyContinue)) { $missing += '${name}' }`).join('; ')}; if ($missing.Count -gt 0) { Write-Output ($missing -join '|'); exit 2 }; exit 0`;
   const verification = await runPowerShell(['-NoProfile', '-Command', verifyScript]);
@@ -245,13 +272,13 @@ try {
   if (verification.code !== 0) {
     return {
       ok: false,
-      error: `O PowerShell terminou, mas algumas regras não foram encontradas. Tente novamente como administrador.${verification.stdout.trim() ? `\n\nAusentes: ${verification.stdout.trim().replace(/\|/g, ', ')}` : ''}`,
+      error: `As regras foram criadas, mas a verificação final falhou.${verification.stdout.trim() ? `\n\nAusentes: ${verification.stdout.trim().replace(/\|/g, ', ')}` : ''}`,
     };
   }
 
   return {
     ok: true,
-    message: 'Firewall configurado com sucesso. WebRTC, SRT e descoberta da câmera estão liberados.',
+    message: 'Firewall configurado e verificado: TCP 8888/8889 e UDP 8189/8890/37020 liberados.',
   };
 }
 
