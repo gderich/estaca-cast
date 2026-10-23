@@ -28,51 +28,75 @@ OBS
 ## Como usar
 
 1. Instale e abra o Estaca Cast no Windows.
-2. Clique em **Preparar computador**.
-3. Clique em **Configurar firewall** e autorize como administrador.
-4. Instale o APK no Android e permita acesso à câmera.
-5. Mantenha celular e computador na mesma rede local.
-6. Abra o Estaca Cast Camera. Ele tenta encontrar o computador automaticamente.
-7. Se não encontrar, no PC clique em **QR de pareamento**. O Estaca Cast inicia o MediaMTX automaticamente antes de exibir o QR.
-8. No celular, toque em **LER QR** dentro do próprio Estaca Cast Camera e aponte para o QR exibido no PC.
-9. O aplicativo lê o QR, faz o pareamento internamente e volta ao preview. Toque em **CONECTAR CÂMERA**.
-10. No OBS, adicione uma **Fonte de mídia**, desmarque **Arquivo local** e use `rtsp://localhost:8554/camera` como entrada.
+2. Clique em **Preparar computador** e **Configurar firewall**.
+3. Instale o APK no Android e permita acesso à câmera.
+4. Mantenha celular e computador na mesma rede local.
+5. Abra o Estaca Cast Camera. Ele tenta encontrar o computador automaticamente.
+6. Se não encontrar, no PC clique em **QR de pareamento**.
+7. No celular, toque em **LER QR** e aponte para o QR do PC.
+8. Toque em **CONECTAR CÂMERA**.
+9. No Estaca Cast para Windows, use **Adicionar câmera ao OBS** para criar/reutilizar automaticamente a fonte `Estaca Cast Camera` na cena atual.
 
-> Não é necessário abrir Google Lens ou outro aplicativo. A partir da versão 0.3.6, o leitor QR está integrado ao Estaca Cast Camera.
+> Não é necessário abrir Google Lens. O leitor QR funciona dentro do próprio aplicativo.
 
-> O botão **LER QR** fica disponível apenas enquanto a câmera não está transmitindo. Ao iniciar/conectar a transmissão, ele é bloqueado para impedir disputa pelo hardware da câmera. Ao parar a transmissão, volta a ficar disponível.
+## Transmissão em segundo plano
 
-> Não é mais necessário lembrar de iniciar o MediaMTX manualmente ao usar o QR de pareamento. A descoberta automática também tenta iniciar o receptor no PC quando encontra o Estaca Cast.
+A partir da versão **0.3.8**, a transmissão SRT é executada por um **Foreground Service de câmera**. Depois que a conexão começa, a câmera deixa de depender da tela principal do aplicativo.
 
-## Standby AMOLED
+Isso permite:
 
-Depois que a conexão SRT é confirmada, o aplicativo espera **5 segundos** e entra automaticamente em standby:
+- apertar **Home** sem interromper o vídeo;
+- bloquear/apagar a tela e continuar transmitindo;
+- voltar ao aplicativo sem reiniciar a transmissão;
+- manter CPU e Wi-Fi ativos durante a transmissão com `WakeLock` e `WiFiLock`;
+- parar a câmera diretamente pela notificação persistente do Android;
+- reconectar automaticamente o SRT em quedas breves de rede.
 
-- a interface fica completamente preta;
-- o brilho da tela é reduzido ao mínimo;
-- barras de navegação e status são ocultadas;
-- a câmera e a transmissão continuam funcionando;
-- em telas AMOLED, os pixels pretos ficam efetivamente apagados, reduzindo bastante o consumo da tela.
+Enquanto a transmissão estiver ativa, o leitor QR e a descoberta ficam bloqueados para evitar disputa pela câmera.
 
-Toque uma vez na tela preta para restaurar a interface. Se a câmera continuar conectada, após mais 5 segundos ela volta ao standby automaticamente.
+## Desligamento automático da tela
 
-O aplicativo mantém a tela tecnicamente ativa durante o standby para evitar que o Android suspenda a câmera ou a conexão SRT.
+Por segurança, o Android não permite que um aplicativo comum apague fisicamente a tela sozinho. O Estaca Cast oferece uma permissão opcional e restrita de **Administrador do dispositivo**, usando apenas a política `force-lock`.
 
-## Assinatura e atualizações
+No aplicativo:
 
-As primeiras versões públicas (até 0.3.3) foram compiladas com a assinatura debug criada pelo runner do GitHub Actions. Como essa chave muda entre runners, o Android não permite instalar uma versão nova por cima da anterior.
+**MENU → Ativar desligamento automático da tela**
 
-Desde a versão 0.3.4, as releases Android usam uma **chave de assinatura persistente** armazenada somente em GitHub Secrets e são geradas com `assembleRelease`.
+Depois de autorizar uma vez, quando a câmera conectar:
 
-Quem migrou de uma versão até 0.3.3 precisa desinstalar o APK antigo uma última vez. A partir de uma instalação 0.3.4 ou superior, as versões seguintes podem ser instaladas normalmente por cima, preservando aplicativo, permissões e dados.
+```text
+Conectou ao Estaca Cast
+        ↓
+aguarda 5 segundos
+        ↓
+bloqueia/apaga a tela
+        ↓
+Foreground Service continua câmera + SRT
+```
 
-A chave privada de assinatura nunca deve ser adicionada ao repositório público. Mantenha um backup seguro do arquivo `.jks` e das credenciais.
+Se essa opção não estiver ativada, o aplicativo mantém o fallback de standby AMOLED: tela preta e brilho mínimo após 5 segundos. Também é possível apagar a tela manualmente com o botão Power; a transmissão continua.
 
-## Aviso ao baixar ou instalar o APK
+## Atualizações dentro do aplicativo
 
-O Estaca Cast Camera é distribuído diretamente pelo GitHub e ainda não está publicado na Google Play. Por isso, Chrome, Android ou Play Protect podem mostrar mensagens como **“este tipo de arquivo pode ser prejudicial”** ou pedir confirmação antes de concluir o download/instalação.
+A partir da versão **0.3.8**, o Estaca Cast Camera verifica automaticamente a Release mais recente no GitHub ao abrir.
 
-Isso é esperado para aplicativos instalados fora da Play Store. Antes de instalar, confirme que o arquivo veio da Release oficial deste repositório. Cada Release publicada pelo GitHub também informa o SHA-256 do APK para verificação de integridade.
+Se houver nova versão:
+
+- o app mostra **Atualização disponível**;
+- o botão passa a indicar `MENU • UPDATE`;
+- em **MENU → Verificar atualização**, é possível checar manualmente a qualquer momento;
+- ao aceitar, o APK é baixado pelo próprio Android;
+- quando o download termina, o instalador do Android é aberto automaticamente.
+
+O Android não permite instalação silenciosa de APK para um aplicativo comum. Portanto, a confirmação final de instalação continua sendo feita pelo usuário. Na primeira atualização pelo próprio app, o Android também pode pedir autorização para **Instalar apps desconhecidos** para o Estaca Cast Camera.
+
+Como as Releases usam a mesma chave de assinatura persistente, a instalação nova sobrescreve a anterior e preserva os dados do aplicativo.
+
+## Assinatura
+
+As primeiras versões públicas usaram assinatura debug variável. As Releases atuais usam uma **chave de assinatura persistente**, armazenada somente em GitHub Secrets e aplicada ao `assembleRelease`.
+
+A chave privada nunca deve ser adicionada ao repositório público. Mantenha backup seguro do `.jks` e das credenciais.
 
 ## Rede e hotspot
 
@@ -80,9 +104,9 @@ A descoberta automática usa UDP `37020` e a câmera publica por SRT em UDP `889
 
 A descoberta tenta broadcast e também varredura unicast da sub-rede local. Isso melhora o funcionamento quando hotspots ou pontos de acesso não encaminham broadcast entre clientes.
 
-Ainda assim, algumas redes podem aplicar isolamento entre dispositivos. Nesses casos, o **QR de pareamento integrado** é o fallback recomendado, porque não depende da descoberta automática: o QR contém o IP atual do PC, a porta SRT e o Stream ID.
+Algumas redes ainda podem aplicar isolamento entre dispositivos. Nesses casos, use o **QR de pareamento integrado**, que contém IP atual do PC, porta SRT e Stream ID.
 
-Se o QR parear mas a câmera não conectar, confirme se o botão **Configurar firewall** foi executado no PC e se a porta UDP `8890` está liberada.
+Se o QR parear mas a câmera não conectar, confirme se **Configurar firewall** foi executado no PC e se UDP `8890` está liberada.
 
 ## Build
 
@@ -92,6 +116,6 @@ O projeto usa:
 - Android Gradle Plugin 9.3.2
 - Gradle 9.7.1
 - RootEncoder 2.8.1
-- ZXing Android Embedded 4.3.0 para leitura interna do QR
+- ZXing Android Embedded 4.3.0
 
-O CI de validação está em `.github/workflows/android-ci.yml` e pode continuar gerando builds debug de teste. As releases públicas são geradas por `.github/workflows/release.yml` com assinatura persistente e arquivo fixo `EstacaCast-Camera.apk`.
+O CI de validação está em `.github/workflows/android-ci.yml`. As Releases públicas são geradas por `.github/workflows/release.yml` com assinatura persistente e arquivo fixo `EstacaCast-Camera.apk`.
