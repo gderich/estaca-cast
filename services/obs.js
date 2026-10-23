@@ -3,10 +3,15 @@ const path = require('path');
 const { OBSWebSocket } = require('obs-websocket-js');
 
 // O vídeo do celular passa por encoder → Wi-Fi/SRT → MediaMTX → RTSP → OBS.
-// As entradas de áudio locais chegam praticamente direto ao OBS. Este atraso
-// inicial aproxima os dois caminhos sem o operador precisar abrir as
-// propriedades avançadas de áudio do OBS.
-const CAMERA_AUDIO_SYNC_MS = 600;
+// As entradas de áudio locais chegam praticamente direto ao OBS. O atraso de
+// áudio compensa essa diferença. O operador pode ajustar o valor no Estaca Cast.
+const DEFAULT_CAMERA_AUDIO_SYNC_MS = 600;
+
+function normalizeAudioSyncMs(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_CAMERA_AUDIO_SYNC_MS;
+  return Math.max(0, Math.min(5000, Math.round(parsed)));
+}
 
 function readObsWebSocketConfig() {
   const candidates = [];
@@ -61,7 +66,8 @@ function isLiveAudioInputKind(kind) {
     value.includes('alsa_input_capture');
 }
 
-async function applyCameraAudioSync(obs) {
+async function applyCameraAudioSync(obs, audioSyncMs = DEFAULT_CAMERA_AUDIO_SYNC_MS) {
+  const syncMs = normalizeAudioSyncMs(audioSyncMs);
   const adjusted = [];
 
   try {
@@ -74,22 +80,22 @@ async function applyCameraAudioSync(obs) {
       try {
         await obs.call('SetInputAudioSyncOffset', {
           inputName,
-          inputAudioSyncOffset: CAMERA_AUDIO_SYNC_MS,
+          inputAudioSyncOffset: syncMs,
         });
         adjusted.push(inputName);
       } catch (_) {}
     }
   } catch (_) {}
 
-  return adjusted;
+  return { syncMs, adjusted };
 }
 
-async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {}) {
+async function connectObs() {
   const config = readObsWebSocketConfig();
-
   if (config.enabled === false) {
     return {
       ok: false,
+      config,
       error: 'O servidor WebSocket do OBS está desativado. No OBS, abra Ferramentas → Configurações do servidor WebSocket e marque “Ativar servidor WebSocket”.',
     };
   }
@@ -101,7 +107,50 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
       config.authRequired ? (config.password || undefined) : undefined,
       { rpcVersion: 1 },
     );
+    return { ok: true, config, obs };
+  } catch (error) {
+    try { await obs.disconnect(); } catch (_) {}
+    return { ok: false, config, error: explainConnectionError(error, config) };
+  }
+}
 
+async function setCameraAudioSync({ audioSyncMs = DEFAULT_CAMERA_AUDIO_SYNC_MS } = {}) {
+  const connection = await connectObs();
+  if (!connection.ok) return { ok: false, error: connection.error };
+
+  const { obs } = connection;
+  try {
+    const { syncMs, adjusted } = await applyCameraAudioSync(obs, audioSyncMs);
+    if (!adjusted.length) {
+      return {
+        ok: false,
+        error: 'Nenhuma fonte de entrada de áudio compatível foi encontrada no OBS.',
+        audioSyncMs: syncMs,
+        syncedAudioInputs: [],
+      };
+    }
+    return {
+      ok: true,
+      message: `Atraso do áudio aplicado: +${syncMs} ms em ${adjusted.join(', ')}.`,
+      audioSyncMs: syncMs,
+      syncedAudioInputs: adjusted,
+    };
+  } catch (error) {
+    return { ok: false, error: explainConnectionError(error, connection.config) };
+  } finally {
+    try { await obs.disconnect(); } catch (_) {}
+  }
+}
+
+async function addCameraToObs({
+  rtspUrl = 'rtsp://localhost:8554/camera',
+  audioSyncMs = DEFAULT_CAMERA_AUDIO_SYNC_MS,
+} = {}) {
+  const connection = await connectObs();
+  if (!connection.ok) return { ok: false, error: connection.error };
+
+  const { obs } = connection;
+  try {
     const scene = await obs.call('GetCurrentProgramScene');
     const sceneName = scene.sceneName || scene.currentProgramSceneName;
     if (!sceneName) {
@@ -113,8 +162,6 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
       is_local_file: false,
       input: rtspUrl,
       input_format: 'rtsp',
-      // O RTSP viaja apenas dentro do próprio computador. Não precisamos de
-      // buffer de rede grande aqui; removê-lo reduz o atraso percebido.
       buffering_mb: 0,
       reconnect_delay_sec: 2,
       hw_decode: true,
@@ -122,7 +169,6 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
       restart_on_activate: true,
       close_when_inactive: false,
       seekable: false,
-      // TCP no trecho MediaMTX → OBS evita artefatos por datagramas perdidos.
       ffmpeg_options: 'rtsp_transport=tcp',
     };
 
@@ -159,9 +205,9 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
     }
 
     const item = await obs.call('GetSceneItemId', { sceneName, sourceName: inputName });
-    const syncedAudioInputs = await applyCameraAudioSync(obs);
+    const { syncMs, adjusted: syncedAudioInputs } = await applyCameraAudioSync(obs, audioSyncMs);
     const syncText = syncedAudioInputs.length
-      ? ` Áudio sincronizado em +${CAMERA_AUDIO_SYNC_MS} ms: ${syncedAudioInputs.join(', ')}.`
+      ? ` Áudio atrasado em +${syncMs} ms: ${syncedAudioInputs.join(', ')}.`
       : ' Nenhuma fonte de entrada de áudio compatível foi encontrada para sincronização automática.';
 
     return {
@@ -171,11 +217,11 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
       inputName,
       sceneItemId: item.sceneItemId,
       rtspUrl,
-      audioSyncMs: CAMERA_AUDIO_SYNC_MS,
+      audioSyncMs: syncMs,
       syncedAudioInputs,
     };
   } catch (error) {
-    return { ok: false, error: explainConnectionError(error, config) };
+    return { ok: false, error: explainConnectionError(error, connection.config) };
   } finally {
     try { await obs.disconnect(); } catch (_) {}
   }
@@ -183,5 +229,8 @@ async function addCameraToObs({ rtspUrl = 'rtsp://localhost:8554/camera' } = {})
 
 module.exports = {
   addCameraToObs,
+  setCameraAudioSync,
   readObsWebSocketConfig,
+  normalizeAudioSyncMs,
+  DEFAULT_CAMERA_AUDIO_SYNC_MS,
 };
