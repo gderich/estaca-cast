@@ -6,6 +6,7 @@ import org.json.JSONObject
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.NetworkInterface
 import java.net.SocketTimeoutException
 
 internal data class EstacaCastServer(
@@ -19,7 +20,7 @@ internal object Discovery {
     private const val PORT = 37020
     private const val MESSAGE = "ESTACACAST_DISCOVER_V1"
 
-    fun find(context: Context, timeoutMs: Int = 1800): EstacaCastServer? {
+    fun find(context: Context, timeoutMs: Int = 2200): EstacaCastServer? {
         val socket = DatagramSocket()
         try {
             socket.broadcast = true
@@ -29,6 +30,7 @@ internal object Discovery {
             val destinations = linkedSetOf<InetAddress>()
             destinations += InetAddress.getByName("255.255.255.255")
             getWifiBroadcast(context)?.let { destinations += it }
+            getInterfaceBroadcasts().forEach { destinations += it }
 
             destinations.forEach { address ->
                 runCatching {
@@ -68,6 +70,16 @@ internal object Discovery {
         } finally {
             socket.close()
         }
+    }
+
+    private fun getInterfaceBroadcasts(): Set<InetAddress> {
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.interfaceAddresses.orEmpty() }
+                .mapNotNull { it.broadcast }
+                .toSet()
+        }.getOrDefault(emptySet())
     }
 
     private fun getWifiBroadcast(context: Context): InetAddress? {
