@@ -34,9 +34,13 @@ OBS
 5. Mantenha celular e computador na mesma rede local.
 6. Abra o Estaca Cast Camera. Ele tenta encontrar o computador automaticamente.
 7. Se não encontrar, no PC clique em **QR de pareamento**. O Estaca Cast inicia o MediaMTX automaticamente antes de exibir o QR.
-8. No celular, abra a câmera ou Google Lens, leia o QR e toque no link `Estaca Cast`.
-9. O aplicativo abrirá já com IP, porta SRT e Stream ID preenchidos internamente. Toque em **Conectar câmera**.
+8. No celular, toque em **LER QR** dentro do próprio Estaca Cast Camera e aponte para o QR exibido no PC.
+9. O aplicativo lê o QR, faz o pareamento internamente e volta ao preview. Toque em **CONECTAR CÂMERA**.
 10. No OBS, adicione uma **Fonte de mídia**, desmarque **Arquivo local** e use `rtsp://localhost:8554/camera` como entrada.
+
+> Não é necessário abrir Google Lens ou outro aplicativo. A partir da versão 0.3.6, o leitor QR está integrado ao Estaca Cast Camera.
+
+> O botão **LER QR** fica disponível apenas enquanto a câmera não está transmitindo. Ao iniciar/conectar a transmissão, ele é bloqueado para impedir disputa pelo hardware da câmera. Ao parar a transmissão, volta a ficar disponível.
 
 > Não é mais necessário lembrar de iniciar o MediaMTX manualmente ao usar o QR de pareamento. A descoberta automática também tenta iniciar o receptor no PC quando encontra o Estaca Cast.
 
@@ -58,14 +62,9 @@ O aplicativo mantém a tela tecnicamente ativa durante o standby para evitar que
 
 As primeiras versões públicas (até 0.3.3) foram compiladas com a assinatura debug criada pelo runner do GitHub Actions. Como essa chave muda entre runners, o Android não permite instalar uma versão nova por cima da anterior.
 
-O workflow de Release agora está preparado para usar uma **chave de assinatura persistente** armazenada somente em GitHub Secrets. As releases Android passam a usar `assembleRelease` e exigem os segredos:
+Desde a versão 0.3.4, as releases Android usam uma **chave de assinatura persistente** armazenada somente em GitHub Secrets e são geradas com `assembleRelease`.
 
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
-
-A primeira versão publicada com essa chave exigirá **uma última desinstalação** de qualquer APK antigo assinado em modo debug. A partir daí, todas as versões futuras assinadas com a mesma chave poderão ser instaladas como atualização normal, preservando o aplicativo e suas permissões/dados.
+Quem migrou de uma versão até 0.3.3 precisa desinstalar o APK antigo uma última vez. A partir de uma instalação 0.3.4 ou superior, as versões seguintes podem ser instaladas normalmente por cima, preservando aplicativo, permissões e dados.
 
 A chave privada de assinatura nunca deve ser adicionada ao repositório público. Mantenha um backup seguro do arquivo `.jks` e das credenciais.
 
@@ -79,9 +78,9 @@ Isso é esperado para aplicativos instalados fora da Play Store. Antes de instal
 
 A descoberta automática usa UDP `37020` e a câmera publica por SRT em UDP `8890`.
 
-A versão 0.3.3 tenta broadcast global, broadcast informado pelo Wi-Fi e os endereços de broadcast de todas as interfaces de rede do Android. Isso melhora o funcionamento quando há múltiplas interfaces ou quando o celular está atuando como hotspot.
+A descoberta tenta broadcast e também varredura unicast da sub-rede local. Isso melhora o funcionamento quando hotspots ou pontos de acesso não encaminham broadcast entre clientes.
 
-Ainda assim, hotspots e algumas redes Wi-Fi podem bloquear ou limitar broadcast/isolamento entre clientes. Nesses casos, o **QR de pareamento é o fallback recomendado**, porque não depende da descoberta UDP: o QR contém o IP atual do PC, a porta SRT e o Stream ID e abre o Estaca Cast Camera via `estacacast://pair`.
+Ainda assim, algumas redes podem aplicar isolamento entre dispositivos. Nesses casos, o **QR de pareamento integrado** é o fallback recomendado, porque não depende da descoberta automática: o QR contém o IP atual do PC, a porta SRT e o Stream ID.
 
 Se o QR parear mas a câmera não conectar, confirme se o botão **Configurar firewall** foi executado no PC e se a porta UDP `8890` está liberada.
 
@@ -93,5 +92,6 @@ O projeto usa:
 - Android Gradle Plugin 9.3.2
 - Gradle 9.7.1
 - RootEncoder 2.8.1
+- ZXing Android Embedded 4.3.0 para leitura interna do QR
 
 O CI de validação está em `.github/workflows/android-ci.yml` e pode continuar gerando builds debug de teste. As releases públicas são geradas por `.github/workflows/release.yml` com assinatura persistente e arquivo fixo `EstacaCast-Camera.apk`.
