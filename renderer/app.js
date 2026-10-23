@@ -29,6 +29,7 @@ function renderState(s) {
     ['Câmera móvel', s.cameraPublishing ? 'Conectada' : 'Desconectada'],
     ['Fonte da câmera no OBS', s.cameraRtspUrl || 'rtsp://localhost:8554/camera'],
     ['SRT da câmera', `UDP ${s.cameraSrtPort || 8890}`],
+    ['Descoberta da câmera', 'UDP 37020'],
     ['YouTube', s.youtubeSending ? 'FFmpeg enviando' : 'Parado'],
     ['IPv4 local', s.localIp],
     ['Player local', s.localUrl],
@@ -40,6 +41,16 @@ function renderState(s) {
 
 async function refresh() {
   renderState(await window.estacaCast.getState());
+}
+
+function showQr({ title, hint, value }) {
+  return window.estacaCast.createQr(value).then((src) => {
+    $('qrTitle').textContent = title;
+    $('qrHint').textContent = hint || '';
+    $('qrImage').src = src;
+    $('qrText').textContent = value;
+    $('qrModal').classList.remove('hidden');
+  });
 }
 
 for (const btn of document.querySelectorAll('.tab')) {
@@ -70,9 +81,21 @@ $('downloadAndroidBtn').onclick = () => window.estacaCast.downloadAndroid();
 $('copyCameraBtn').onclick = () => window.estacaCast.copyText(currentState?.cameraRtspUrl || $('cameraRtspUrl').textContent);
 $('qrBtn').onclick = async () => {
   const url = currentState?.localUrl || $('localUrl').textContent;
-  $('qrImage').src = await window.estacaCast.createQr(url);
-  $('qrText').textContent = url;
-  $('qrModal').classList.remove('hidden');
+  await showQr({
+    title: 'Abrir transmissão local',
+    hint: 'Escaneie em outro aparelho conectado à mesma rede.',
+    value: url,
+  });
+};
+$('cameraQrBtn').onclick = async () => {
+  const state = currentState || await window.estacaCast.getState();
+  const name = `Estaca Cast — ${state.localIp || 'PC'}`;
+  const pairUrl = `estacacast://pair?ip=${encodeURIComponent(state.localIp)}&port=${encodeURIComponent(state.cameraSrtPort || 8890)}&streamid=${encodeURIComponent(state.cameraStreamId || 'publish:camera')}&name=${encodeURIComponent(name)}`;
+  await showQr({
+    title: 'Parear câmera Android',
+    hint: 'No celular, abra a câmera ou Google Lens, leia este QR e toque no link Estaca Cast. Não é necessário digitar IP.',
+    value: pairUrl,
+  });
 };
 $('qrClose').onclick = () => $('qrModal').classList.add('hidden');
 $('qrModal').onclick = (e) => { if (e.target === $('qrModal')) $('qrModal').classList.add('hidden'); };
