@@ -45,7 +45,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
-      "artifactName": "EstacaCast-Setup-${version}.exe",
+      "artifactName": "EstacaCast-Setup.exe",
       "uninstallDisplayName": "Estaca Cast"
     },
     "publish": [
