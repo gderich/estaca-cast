@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, safeStorage } = r
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const dgram = require('dgram');
 const { spawn } = require('child_process');
 const QRCode = require('qrcode');
 const { createRuntime } = require('./services/runtime');
@@ -13,6 +15,7 @@ let mainWindow = null;
 let runtime = null;
 let stateTimer = null;
 let updateStatus = 'idle';
+let discoverySocket = null;
 
 function appRoot() {
   return path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'EstacaCast');
@@ -80,6 +83,47 @@ async function sendState() {
   mainWindow.webContents.send('state:update', state);
 }
 
+function startDiscoveryService() {
+  if (discoverySocket || !runtime) return;
+
+  discoverySocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+  discoverySocket.on('error', () => {});
+  discoverySocket.on('message', async (msg, rinfo) => {
+    if (String(msg || '').trim() !== 'ESTACACAST_DISCOVER_V1') return;
+
+    try {
+      let state = await runtime.getState();
+      if (state.tools?.mediamtx && !state.mediaOnline) {
+        try {
+          await runtime.startMediaMtx();
+          state = await runtime.getState();
+          await sendState();
+        } catch (_) {}
+      }
+
+      const response = Buffer.from(JSON.stringify({
+        type: 'estacacast',
+        name: `Estaca Cast — ${os.hostname()}`,
+        ip: state.localIp,
+        ready: state.mediaOnline,
+        srtPort: state.cameraSrtPort || 8890,
+        streamId: state.cameraStreamId || 'publish:camera',
+        rtspUrl: state.cameraRtspUrl || 'rtsp://localhost:8554/camera',
+      }), 'utf8');
+
+      discoverySocket?.send(response, rinfo.port, rinfo.address);
+    } catch (_) {}
+  });
+
+  discoverySocket.bind(37020, '0.0.0.0');
+}
+
+function stopDiscoveryService() {
+  if (!discoverySocket) return;
+  try { discoverySocket.close(); } catch (_) {}
+  discoverySocket = null;
+}
+
 function setupAutoUpdater() {
   if (!app.isPackaged) return;
   autoUpdater.autoDownload = true;
@@ -124,12 +168,16 @@ async function configureFirewall() {
     "$ErrorActionPreference='Stop'",
     "Get-NetFirewallRule -DisplayName 'Estaca Cast WebRTC TCP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
     "Get-NetFirewallRule -DisplayName 'Estaca Cast WebRTC UDP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
+    "Get-NetFirewallRule -DisplayName 'Estaca Cast SRT' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
+    "Get-NetFirewallRule -DisplayName 'Estaca Cast Camera Discovery' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue",
     "New-NetFirewallRule -DisplayName 'Estaca Cast WebRTC TCP' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8889,8888 | Out-Null",
     "New-NetFirewallRule -DisplayName 'Estaca Cast WebRTC UDP' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 8189 | Out-Null",
+    "New-NetFirewallRule -DisplayName 'Estaca Cast SRT' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 8890 | Out-Null",
+    "New-NetFirewallRule -DisplayName 'Estaca Cast Camera Discovery' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 37020 | Out-Null",
   ].join('; ');
   const psArgs = `-NoProfile -ExecutionPolicy Bypass -Command \"${command.replace(/\"/g, '\\\"')}\"`;
   spawn('powershell.exe', ['-NoProfile', '-Command', `Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList '${psArgs.replace(/'/g, "''")}'`], { windowsHide: true });
-  return { ok: true, message: 'O Windows exibirá a confirmação de administrador para liberar as portas locais.' };
+  return { ok: true, message: 'O Windows exibirá a confirmação de administrador para liberar WebRTC, SRT e descoberta da câmera.' };
 }
 
 async function installOrOpenObs() {
@@ -149,6 +197,7 @@ async function installOrOpenObs() {
 
 app.whenReady().then(() => {
   runtime = createRuntime(getPaths());
+  startDiscoveryService();
   createWindow();
   setupAutoUpdater();
 
@@ -172,6 +221,7 @@ app.on('second-instance', () => {
 
 app.on('window-all-closed', () => {
   if (stateTimer) clearInterval(stateTimer);
+  stopDiscoveryService();
   if (runtime) runtime.stopAll();
   app.quit();
 });
