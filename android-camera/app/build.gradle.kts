@@ -15,8 +15,8 @@ android {
         applicationId = "com.derich.estacacast.camera"
         minSdk = 23
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.3.5"
+        versionCode = 7
+        versionName = "0.3.6"
     }
 
     signingConfigs {
@@ -40,6 +40,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 }
 
@@ -50,4 +51,6 @@ kotlin {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.github.pedroSG94.RootEncoder:library:2.8.1")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
