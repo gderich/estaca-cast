@@ -1,0 +1,38 @@
+name: Validar Estaca Cast Camera
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'android-camera/**'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Compilar APK
+        working-directory: android-camera
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Salvar APK de teste
+        uses: actions/upload-artifact@v4
+        with:
+          name: EstacaCast-Camera-debug
+          path: android-camera/app/build/outputs/apk/debug/app-debug.apk
