@@ -50,7 +50,7 @@ class CameraStreamService : Service(), ConnectChecker {
         @Volatile var stateMessage: String = "Pronto."
             private set
 
-        fun start(context: Context, target: EstacaCastServer, frontCamera: Boolean, autoLock: Boolean) {
+        internal fun start(context: Context, target: EstacaCastServer, frontCamera: Boolean, autoLock: Boolean) {
             val intent = Intent(context, CameraStreamService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_IP, target.ip)
