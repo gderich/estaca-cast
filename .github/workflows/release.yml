@@ -54,6 +54,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check services/runtime.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check services/obs.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Instalar dependências
         run: npm install
