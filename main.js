@@ -17,6 +17,8 @@ let stateTimer = null;
 let updateStatus = 'idle';
 let discoverySocket = null;
 
+const ANDROID_APK_URL = 'https://github.com/gderich/estaca-cast/releases/latest/download/EstacaCast-Camera.apk';
+
 function appRoot() {
   return path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'EstacaCast');
 }
@@ -269,6 +271,11 @@ ipcMain.handle('local:stop-all', async () => {
 ipcMain.handle('local:open-player', async () => {
   const s = await runtime.getState();
   await shell.openExternal(s.localUrl);
+  return { ok: true };
+});
+
+ipcMain.handle('android:download', async () => {
+  await shell.openExternal(ANDROID_APK_URL);
   return { ok: true };
 });
 
