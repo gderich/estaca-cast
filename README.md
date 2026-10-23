@@ -1,27 +1,21 @@
 # Estaca Cast
 
+Aplicativo Windows para distribuir a saída do OBS em baixa latência na rede local usando MediaMTX e, opcionalmente, encaminhar a mesma transmissão para o YouTube com FFmpeg.
+
 <p align="left">
   <a href="https://github.com/gderich/estaca-cast/releases/latest/download/EstacaCast-Setup.exe">
-    <img alt="Baixar Estaca Cast" src="https://img.shields.io/badge/⬇%20Baixar%20Estaca%20Cast-Windows-1769ff?style=for-the-badge&logo=windows11&logoColor=white">
+    <img alt="Baixar Estaca Cast para Windows" src="https://img.shields.io/badge/BAIXAR%20ESTACA%20CAST-WINDOWS-1769ff?style=for-the-badge&logo=windows11&logoColor=white">
   </a>
   <a href="https://github.com/gderich/estaca-cast/releases/latest">
-    <img alt="Última versão" src="https://img.shields.io/github/v/release/gderich/estaca-cast?style=for-the-badge&label=versão">
+    <img alt="Release mais recente" src="https://img.shields.io/github/v/release/gderich/estaca-cast?display_name=tag&style=for-the-badge&color=2ea043">
   </a>
 </p>
 
-Aplicativo Windows para distribuir a saída do OBS em baixa latência na rede local usando MediaMTX e, opcionalmente, encaminhar a mesma transmissão para o YouTube com FFmpeg.
+> O botão **Baixar Estaca Cast** sempre aponta para o instalador da versão pública mais recente.
 
-## Download
+## O que ele faz
 
-**[⬇ Baixar o instalador mais recente para Windows](https://github.com/gderich/estaca-cast/releases/latest/download/EstacaCast-Setup.exe)**
-
-Depois de baixar, execute `EstacaCast-Setup.exe`. O instalador cria atalhos no Menu Iniciar e, se desejado, na Área de Trabalho.
-
-> O botão de download acima sempre aponta para o instalador da Release mais recente.
-
-## Objetivo
-
-O Estaca Cast foi criado para simplificar um fluxo que normalmente exige vários programas, comandos e configurações manuais. A ideia é permitir que um operador consiga preparar o computador, configurar o OBS, distribuir o vídeo para TVs/notebooks/celulares na mesma rede e iniciar uma transmissão pública pelo YouTube usando uma interface única.
+O Estaca Cast foi criado para simplificar um fluxo que normalmente exige vários programas, comandos e configurações manuais. A ideia é permitir que um operador consiga preparar o computador, configurar o OBS, distribuir o vídeo para TVs, notebooks e celulares na mesma rede e, se quiser, iniciar uma transmissão pública pelo YouTube usando uma única interface.
 
 ## Funcionalidades da versão 0.2.0
 
