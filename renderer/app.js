@@ -7,6 +7,20 @@ function setStatus(el, text, kind = '') {
   if (kind) el.classList.add(kind);
 }
 
+function getAudioSyncMs() {
+  const value = Number($('audioSyncMs')?.value ?? 600);
+  if (!Number.isFinite(value)) return 600;
+  return Math.max(0, Math.min(5000, Math.round(value)));
+}
+
+function setAudioSyncField(value) {
+  const input = $('audioSyncMs');
+  if (!input || document.activeElement === input) return;
+  const normalized = Math.max(0, Math.min(5000, Math.round(Number(value) || 0)));
+  input.value = String(normalized);
+  $('audioSyncNotice').innerHTML = `Valor atual: <b>+${normalized} ms no áudio</b>. Faça uma palma diante da câmera e ajuste até o som coincidir com o movimento.`;
+}
+
 function renderState(s) {
   currentState = s;
   $('version').textContent = `v${s.version}`;
@@ -20,6 +34,7 @@ function renderState(s) {
   $('cameraRtspUrl').textContent = s.cameraRtspUrl || 'rtsp://localhost:8554/camera';
   $('cameraStatus').textContent = s.cameraPublishing ? 'Conectada' : 'Desconectada';
   $('cameraStatus').className = s.cameraPublishing ? 'good' : '';
+  if (s.cameraAudioSyncMs !== undefined) setAudioSyncField(s.cameraAudioSyncMs);
 
   const rows = [
     ['Versão', s.version],
@@ -28,6 +43,7 @@ function renderState(s) {
     ['OBS publicando', s.obsPublishing ? 'Sim' : 'Não'],
     ['Câmera móvel', s.cameraPublishing ? 'Conectada' : 'Desconectada'],
     ['Fonte da câmera no OBS', s.cameraRtspUrl || 'rtsp://localhost:8554/camera'],
+    ['Sincronização do áudio', `+${s.cameraAudioSyncMs ?? 600} ms`],
     ['SRT da câmera', `UDP ${s.cameraSrtPort || 8890}`],
     ['Descoberta da câmera', 'UDP 37020'],
     ['YouTube', s.youtubeSending ? 'FFmpeg enviando' : 'Parado'],
@@ -108,12 +124,13 @@ $('addCameraObsBtn').onclick = async () => {
   const previous = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Adicionando…';
-  notice.textContent = 'Conectando ao OBS e preparando a fonte da câmera…';
+  notice.textContent = 'Conectando ao OBS, preparando a câmera e aplicando a sincronização do áudio…';
 
   try {
-    const r = await window.estacaCast.addCameraToObs();
+    const r = await window.estacaCast.addCameraToObs({ audioSyncMs: getAudioSyncMs() });
     if (r.ok) {
       notice.textContent = r.message || 'Câmera adicionada ao OBS.';
+      if (r.audioSyncMs !== undefined) setAudioSyncField(r.audioSyncMs);
     } else {
       notice.textContent = r.error || 'Não foi possível adicionar a câmera ao OBS.';
       alert(r.error || 'Não foi possível adicionar a câmera ao OBS.');
@@ -126,6 +143,43 @@ $('addCameraObsBtn').onclick = async () => {
     btn.textContent = previous;
   }
 };
+
+for (const btn of document.querySelectorAll('[data-sync-step]')) {
+  btn.addEventListener('click', () => {
+    const next = getAudioSyncMs() + Number(btn.dataset.syncStep || 0);
+    $('audioSyncMs').value = String(Math.max(0, Math.min(5000, next)));
+  });
+}
+
+$('resetAudioSyncBtn').onclick = () => {
+  $('audioSyncMs').value = '600';
+};
+
+$('applyAudioSyncBtn').onclick = async () => {
+  const btn = $('applyAudioSyncBtn');
+  const previous = btn.textContent;
+  const value = getAudioSyncMs();
+  btn.disabled = true;
+  btn.textContent = 'Aplicando…';
+  $('audioSyncNotice').textContent = `Aplicando +${value} ms de atraso ao áudio do OBS…`;
+  try {
+    const r = await window.estacaCast.setAudioSync({ audioSyncMs: value });
+    if (r.ok) {
+      $('audioSyncNotice').textContent = r.message || `Atraso do áudio aplicado: +${value} ms.`;
+      if (r.audioSyncMs !== undefined) $('audioSyncMs').value = String(r.audioSyncMs);
+    } else {
+      $('audioSyncNotice').textContent = r.error || 'Não foi possível aplicar a sincronização.';
+      alert(r.error || 'Não foi possível aplicar a sincronização.');
+    }
+  } catch (error) {
+    $('audioSyncNotice').textContent = 'Erro ao aplicar a sincronização.';
+    alert(error?.message || String(error));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = previous;
+  }
+};
+
 $('qrBtn').onclick = async () => {
   const url = currentState?.localUrl || $('localUrl').textContent;
   await showQr({
