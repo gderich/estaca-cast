@@ -69,7 +69,30 @@ $('prepareBtn').onclick = async () => {
   else $('setupText').textContent = 'Tudo pronto. Você já pode iniciar o MediaMTX.';
   refresh();
 };
-$('firewallBtn').onclick = async () => { const r = await window.estacaCast.configureFirewall(); if (r.message) alert(r.message); };
+$('firewallBtn').onclick = async () => {
+  const btn = $('firewallBtn');
+  const previous = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Configurando…';
+  $('setupText').textContent = 'Aguardando confirmação de administrador do Windows…';
+
+  try {
+    const r = await window.estacaCast.configureFirewall();
+    if (r.ok) {
+      $('setupText').textContent = 'Firewall configurado e verificado.';
+      alert(r.message || 'Firewall configurado com sucesso.');
+    } else {
+      $('setupText').textContent = 'Não foi possível configurar o firewall.';
+      alert(r.error || 'Falha ao configurar o firewall.');
+    }
+  } catch (error) {
+    $('setupText').textContent = 'Erro ao configurar o firewall.';
+    alert(error?.message || String(error));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = previous;
+  }
+};
 $('obsInstallBtn').onclick = () => window.estacaCast.installOrOpenObs();
 $('openObsBtn').onclick = async () => { const r = await window.estacaCast.openObs(); if (!r.ok) alert(r.error); };
 $('copyWhipBtn').onclick = () => window.estacaCast.copyText(currentState?.whipUrl || $('whipUrl').textContent);
