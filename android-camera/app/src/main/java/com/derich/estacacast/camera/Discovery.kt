@@ -37,7 +37,6 @@ internal object Discovery {
             socket.soTimeout = timeoutMs
             val data = MESSAGE.toByteArray(Charsets.UTF_8)
 
-            // 1) Broadcast tradicional: rápido em redes Wi-Fi comuns.
             val broadcastDestinations = linkedSetOf<InetAddress>()
             broadcastDestinations += InetAddress.getByName("255.255.255.255")
             getWifiBroadcast(context)?.let { broadcastDestinations += it }
@@ -49,8 +48,8 @@ internal object Discovery {
                 }
             }
 
-            // 2) Fallback unicast: tenta cada host da sub-rede local.
-            // Isso contorna hotspots/APs que não encaminham broadcast entre clientes.
+            // Fallback robusto: tenta hosts individuais da sub-rede.
+            // Útil em hotspots e APs que não encaminham broadcast entre clientes.
             getUnicastCandidates().forEach { address ->
                 runCatching {
                     socket.send(DatagramPacket(data, data.size, address, PORT))
@@ -81,7 +80,9 @@ internal object Discovery {
 
                 return EstacaCastServer(
                     name = json.optString("name", "Estaca Cast"),
-                    ip = advertisedIp.ifBlank { responseIp },
+                    // O endereço de origem da resposta é o caminho de rede que
+                    // efetivamente alcançou o celular; por isso ele tem prioridade.
+                    ip = responseIp.ifBlank { advertisedIp },
                     srtPort = json.optInt("srtPort", 8890),
                     streamId = json.optString("streamId", "publish:camera"),
                 )
@@ -114,7 +115,6 @@ internal object Discovery {
                     val bytes = address.address
                     val prefix = iface.networkPrefixLength.toInt()
 
-                    // Para redes muito grandes, limita a busca ao /24 do aparelho.
                     val effectivePrefix = if (prefix in 24..30) prefix else 24
                     val ipInt = ((bytes[0].toInt() and 0xff) shl 24) or
                         ((bytes[1].toInt() and 0xff) shl 16) or
