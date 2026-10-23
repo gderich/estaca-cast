@@ -10,12 +10,14 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.pedro.common.ConnectChecker
@@ -59,7 +61,29 @@ class CameraStreamService : Service(), ConnectChecker {
         @Volatile var stateMessage: String = "Pronto."
             private set
 
+        private fun requestBatteryExemptionIfNeeded(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+            val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (power.isIgnoringBatteryOptimizations(context.packageName)) return
+
+            val request = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+            runCatching { context.startActivity(request) }
+                .onFailure {
+                    runCatching {
+                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    }
+                }
+        }
+
         internal fun start(context: Context, target: EstacaCastServer, frontCamera: Boolean, autoLock: Boolean) {
+            // A transmissão é uma função contínua e sensível a Doze/economia de bateria.
+            // Se ainda não houver exceção, o Android mostra a autorização oficial antes
+            // da primeira sessão. O serviço, WakeLock e Wi-Fi Lock continuam ativos
+            // independentemente desta opção.
+            requestBatteryExemptionIfNeeded(context)
+
             val intent = Intent(context, CameraStreamService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_IP, target.ip)
@@ -192,7 +216,7 @@ class CameraStreamService : Service(), ConnectChecker {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_app_icon)
             .setContentTitle("Estaca Cast Camera")
             .setContentText(text)
@@ -201,7 +225,24 @@ class CameraStreamService : Service(), ConnectChecker {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .addAction(0, "PARAR", stopPending)
-            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val power = getSystemService(POWER_SERVICE) as PowerManager
+            if (!power.isIgnoringBatteryOptimizations(packageName)) {
+                val batteryIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                val batteryPending = PendingIntent.getActivity(
+                    this,
+                    3,
+                    batteryIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                builder.addAction(0, "BATERIA", batteryPending)
+            }
+        }
+
+        return builder.build()
     }
 
     private fun updateNotification(text: String) {
