@@ -1,6 +1,6 @@
 {
   "name": "estaca-cast",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Distribuição local de baixa latência do OBS com MediaMTX, câmera Android e envio opcional ao YouTube.",
   "main": "main.js",
   "author": "Gabriel Derich",
