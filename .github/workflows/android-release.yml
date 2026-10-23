@@ -1,0 +1,50 @@
+name: Publicar Estaca Cast Camera
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.android-release-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Compilar APK Android
+        working-directory: android-camera
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Preparar APK
+        run: cp android-camera/app/build/outputs/apk/debug/app-debug.apk EstacaCast-Camera.apk
+
+      - name: Definir versão
+        shell: bash
+        run: |
+          VERSION=$(python -c "import json; print(json.load(open('package.json'))['version'])")
+          echo "RELEASE_TAG=v${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Anexar APK à Release existente
+        shell: bash
+        run: gh release upload "$RELEASE_TAG" EstacaCast-Camera.apk --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
