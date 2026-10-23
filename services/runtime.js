@@ -115,7 +115,7 @@ function createRuntime(paths) {
 
   function fetchJson(url) {
     return new Promise((resolve, reject) => {
-      http.get(url, { timeout: 800 }, (res) => {
+      http.get(url, { timeout: 900 }, (res) => {
         let body = '';
         res.setEncoding('utf8');
         res.on('data', (c) => body += c);
@@ -141,6 +141,8 @@ function createRuntime(paths) {
       'logLevel: info',
       'api: true',
       'apiAddress: 127.0.0.1:9997',
+      'srt: true',
+      'srtAddress: :8890',
       'hlsAlwaysRemux: true',
       'hlsVariant: lowLatency',
       'hlsSegmentCount: 7',
@@ -148,6 +150,8 @@ function createRuntime(paths) {
       'hlsPartDuration: 200ms',
       'paths:',
       '  conferencia:',
+      '    source: publisher',
+      '  camera:',
       '    source: publisher',
       '',
     ].join('\n');
@@ -158,12 +162,17 @@ function createRuntime(paths) {
     if (fs.existsSync(mediaExe)) return;
     const zipPath = path.join(paths.temp, `estacacast-mediamtx-${Date.now()}.zip`);
     onProgress?.({ percent: 0.05, message: 'Baixando MediaMTX…' });
-    await download(MEDIAMTX_URL, zipPath, (p) => onProgress?.({ percent: 0.05 + p * 0.35, message: `Baixando MediaMTX… ${Math.round(p * 100)}%` }));
+    await download(MEDIAMTX_URL, zipPath, (p) => onProgress?.({
+      percent: 0.05 + p * 0.35,
+      message: `Baixando MediaMTX… ${Math.round(p * 100)}%`,
+    }));
     onProgress?.({ percent: 0.43, message: 'Extraindo MediaMTX…' });
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(paths.mediamtxDir, true);
     try { fs.unlinkSync(zipPath); } catch (_) {}
-    if (!fs.existsSync(mediaExe)) throw new Error('O MediaMTX foi baixado, mas mediamtx.exe não foi encontrado após a extração.');
+    if (!fs.existsSync(mediaExe)) {
+      throw new Error('O MediaMTX foi baixado, mas mediamtx.exe não foi encontrado após a extração.');
+    }
   }
 
   async function installFfmpeg(onProgress) {
@@ -183,19 +192,8 @@ function createRuntime(paths) {
     onProgress?.({ percent: 0.01, message: 'Verificando ferramentas…' });
     await installMediaMtx(onProgress);
     writeMediaConfig();
-    onProgress?.({ percent: 0.48, message: 'MediaMTX pronto.' });
+    onProgress?.({ percent: 0.48, message: 'MediaMTX pronto, incluindo câmera SRT.' });
     await installFfmpeg(onProgress);
-    onProgress?.({ percent: 0.93, message: 'Validando configuração…' });
-
-    const check = spawnSync(mediaExe, [mediaCfg], {
-      env: { ...process.env, MTX_CONFKEY: 'check' },
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 5000,
-    });
-    // MediaMTX não possui um modo universal de check via variável; a validação real é feita ao iniciar.
-    // Ignoramos o resultado aqui e confirmamos o serviço pelas portas/API no startMediaMtx().
-    void check;
     onProgress?.({ percent: 1, message: 'Tudo pronto.' });
   }
 
@@ -220,23 +218,29 @@ function createRuntime(paths) {
     return true;
   }
 
-  async function obsPublishing() {
+  async function pathPublishing(name) {
     if (!(await testPort(9997))) return false;
     try {
       const data = await fetchJson('http://127.0.0.1:9997/v3/paths/list');
-      const items = data.items || [];
-      return items.some((x) => x.name === 'conferencia' && (x.ready === true || x.sourceReady === true));
+      return (data.items || []).some((x) => x.name === name && (x.ready === true || x.sourceReady === true));
     } catch (_) {
       return false;
     }
+  }
+
+  async function obsPublishing() {
+    return pathPublishing('conferencia');
+  }
+
+  async function cameraPublishing() {
+    return pathPublishing('camera');
   }
 
   async function viewerCount() {
     if (!(await testPort(9997))) return 0;
     try {
       const data = await fetchJson('http://127.0.0.1:9997/v3/webrtcsessions/list');
-      const items = data.items || [];
-      return items.filter((x) => x.path === 'conferencia' && x.state !== 'publish').length;
+      return (data.items || []).filter((x) => x.path === 'conferencia' && x.state !== 'publish').length;
     } catch (_) {
       return 0;
     }
@@ -246,7 +250,9 @@ function createRuntime(paths) {
     key = String(key || '').trim();
     if (!key) throw new Error('Cole a chave de transmissão do YouTube.');
     await startMediaMtx();
-    if (!(await obsPublishing())) throw new Error('O OBS ainda não está publicando. Clique em “Iniciar transmissão” no OBS e tente novamente.');
+    if (!(await obsPublishing())) {
+      throw new Error('O OBS ainda não está publicando. Clique em “Iniciar transmissão” no OBS e tente novamente.');
+    }
     const ffmpeg = findFfmpeg();
     if (!ffmpeg) throw new Error('FFmpeg não encontrado. Use “Preparar computador” primeiro.');
     stopYoutube();
@@ -313,18 +319,24 @@ function createRuntime(paths) {
     const ffmpeg = findFfmpeg();
     const obsPath = findObs();
     const mediaOnline = await testPort(8889);
-    const publishing = mediaOnline ? await obsPublishing() : false;
     const ip = getLocalIp();
+    const publishing = mediaOnline ? await obsPublishing() : false;
+    const mobileCamera = mediaOnline ? await cameraPublishing() : false;
+
     return {
       tools: { mediamtx: fs.existsSync(mediaExe), ffmpeg: Boolean(ffmpeg) },
       mediaOnline,
       obsInstalled: Boolean(obsPath),
       obsPath,
       obsPublishing: publishing,
+      cameraPublishing: mobileCamera,
       youtubeSending: Boolean(youtubeProc && youtubeProc.exitCode === null),
       localIp: ip,
       localUrl: `http://${ip}:8889/conferencia`,
       whipUrl: 'http://localhost:8889/conferencia/whip',
+      cameraRtspUrl: 'rtsp://localhost:8554/camera',
+      cameraSrtPort: 8890,
+      cameraStreamId: 'publish:camera',
       viewers: mediaOnline ? await viewerCount() : 0,
       logsDir: paths.logs,
     };
