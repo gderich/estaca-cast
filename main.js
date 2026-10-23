@@ -7,6 +7,7 @@ const dgram = require('dgram');
 const { spawn } = require('child_process');
 const QRCode = require('qrcode');
 const { createRuntime } = require('./services/runtime');
+const { addCameraToObs } = require('./services/obs');
 
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
@@ -350,6 +351,25 @@ ipcMain.handle('obs:open', async () => {
   if (!s.obsPath) return { ok: false, error: 'OBS não encontrado.' };
   spawn(s.obsPath, [], { detached: true, windowsHide: false });
   return { ok: true };
+});
+
+ipcMain.handle('obs:add-camera', async () => {
+  try {
+    let s = await runtime.getState();
+    if (!s.obsPath) return { ok: false, error: 'OBS não encontrado. Instale ou abra o OBS primeiro.' };
+
+    if (!s.mediaOnline) {
+      await runtime.startMediaMtx();
+      s = await runtime.getState();
+      await sendState();
+    }
+
+    return await addCameraToObs({
+      rtspUrl: s.cameraRtspUrl || 'rtsp://localhost:8554/camera',
+    });
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
 });
 
 ipcMain.handle('local:start', async () => {
