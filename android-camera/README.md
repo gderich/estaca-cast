@@ -54,13 +54,26 @@ Toque uma vez na tela preta para restaurar a interface. Se a câmera continuar c
 
 O aplicativo mantém a tela tecnicamente ativa durante o standby para evitar que o Android suspenda a câmera ou a conexão SRT.
 
+## Assinatura e atualizações
+
+As primeiras versões públicas (até 0.3.3) foram compiladas com a assinatura debug criada pelo runner do GitHub Actions. Como essa chave muda entre runners, o Android não permite instalar uma versão nova por cima da anterior.
+
+O workflow de Release agora está preparado para usar uma **chave de assinatura persistente** armazenada somente em GitHub Secrets. As releases Android passam a usar `assembleRelease` e exigem os segredos:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+A primeira versão publicada com essa chave exigirá **uma última desinstalação** de qualquer APK antigo assinado em modo debug. A partir daí, todas as versões futuras assinadas com a mesma chave poderão ser instaladas como atualização normal, preservando o aplicativo e suas permissões/dados.
+
+A chave privada de assinatura nunca deve ser adicionada ao repositório público. Mantenha um backup seguro do arquivo `.jks` e das credenciais.
+
 ## Aviso ao baixar ou instalar o APK
 
 O Estaca Cast Camera é distribuído diretamente pelo GitHub e ainda não está publicado na Google Play. Por isso, Chrome, Android ou Play Protect podem mostrar mensagens como **“este tipo de arquivo pode ser prejudicial”** ou pedir confirmação antes de concluir o download/instalação.
 
 Isso é esperado para aplicativos instalados fora da Play Store. Antes de instalar, confirme que o arquivo veio da Release oficial deste repositório. Cada Release publicada pelo GitHub também informa o SHA-256 do APK para verificação de integridade.
-
-A versão atual usa assinatura de teste do Android SDK. Para distribuição mais ampla, a próxima etapa recomendada é migrar para uma chave de assinatura de release persistente.
 
 ## Rede e hotspot
 
@@ -81,6 +94,4 @@ O projeto usa:
 - Gradle 9.7.1
 - RootEncoder 2.8.1
 
-O CI está em `.github/workflows/android-ci.yml`. Builds aprovados geram o artefato `EstacaCast-Camera-debug`; releases públicas anexam o arquivo fixo `EstacaCast-Camera.apk`.
-
-> A versão atual é um MVP de validação e usa assinatura debug do Android SDK para facilitar testes internos.
+O CI de validação está em `.github/workflows/android-ci.yml` e pode continuar gerando builds debug de teste. As releases públicas são geradas por `.github/workflows/release.yml` com assinatura persistente e arquivo fixo `EstacaCast-Camera.apk`.
