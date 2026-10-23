@@ -29,3 +29,47 @@ jobs:
         run: npm run build:win -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-android:
+    needs: build-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Compilar APK Android
+        working-directory: android-camera
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Preparar APK
+        run: cp android-camera/app/build/outputs/apk/debug/app-debug.apk EstacaCast-Camera.apk
+
+      - name: Definir tag da Release
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          else
+            VERSION=$(python -c "import json; print(json.load(open('package.json'))['version'])")
+            echo "RELEASE_TAG=v${VERSION}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Anexar APK à Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: EstacaCast-Camera.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
