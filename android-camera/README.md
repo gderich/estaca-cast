@@ -38,11 +38,19 @@ OBS
 9. O aplicativo abrirá já com IP, porta SRT e Stream ID preenchidos internamente. Toque em **Conectar câmera**.
 10. No OBS, adicione uma **Fonte de mídia**, desmarque **Arquivo local** e use `rtsp://localhost:8554/camera` como entrada.
 
+## Aviso ao baixar ou instalar o APK
+
+O Estaca Cast Camera é distribuído diretamente pelo GitHub e ainda não está publicado na Google Play. Por isso, Chrome, Android ou Play Protect podem mostrar mensagens como **“este tipo de arquivo pode ser prejudicial”** ou pedir confirmação antes de concluir o download/instalação.
+
+Isso é esperado para aplicativos instalados fora da Play Store. Antes de instalar, confirme que o arquivo veio da Release oficial deste repositório. Cada Release publicada pelo GitHub também informa o SHA-256 do APK para verificação de integridade.
+
+A versão atual usa assinatura de teste do Android SDK. Para distribuição mais ampla, a próxima etapa recomendada é migrar para uma chave de assinatura de release persistente.
+
 ## Rede e hotspot
 
 A descoberta automática usa UDP `37020` e a câmera publica por SRT em UDP `8890`.
 
-A versão 0.1.1 tenta broadcast global, broadcast informado pelo Wi-Fi e os endereços de broadcast de todas as interfaces de rede do Android. Isso melhora o funcionamento quando há múltiplas interfaces ou quando o celular está atuando como hotspot.
+A versão 0.3.2 tenta broadcast global, broadcast informado pelo Wi-Fi e os endereços de broadcast de todas as interfaces de rede do Android. Isso melhora o funcionamento quando há múltiplas interfaces ou quando o celular está atuando como hotspot.
 
 Ainda assim, hotspots e algumas redes Wi-Fi podem bloquear ou limitar broadcast/isolamento entre clientes. Nesses casos, o **QR de pareamento é o fallback recomendado**, porque não depende da descoberta UDP: o QR contém o IP atual do PC, a porta SRT e o Stream ID e abre o Estaca Cast Camera via `estacacast://pair`.
 
