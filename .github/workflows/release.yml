@@ -5,6 +5,10 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches:
+      - main
+    paths:
+      - '.release-trigger'
 
 permissions:
   contents: write
