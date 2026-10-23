@@ -33,14 +33,20 @@ OBS
 4. Clique em **Iniciar local** para iniciar o MediaMTX.
 5. Instale o APK no Android e permita acesso à câmera.
 6. Mantenha celular e computador na mesma rede local.
-7. Abra o Estaca Cast Camera e conecte à instância encontrada automaticamente.
-8. No OBS, adicione uma **Fonte de mídia**, desmarque **Arquivo local** e use `rtsp://localhost:8554/camera` como entrada.
+7. Abra o Estaca Cast Camera. Ele tenta encontrar o computador automaticamente.
+8. Se não encontrar, no PC clique em **QR de pareamento**. No celular, abra a câmera ou Google Lens, leia o QR e toque no link `Estaca Cast`.
+9. O aplicativo abrirá já com IP, porta SRT e Stream ID preenchidos internamente. Toque em **Conectar câmera**.
+10. No OBS, adicione uma **Fonte de mídia**, desmarque **Arquivo local** e use `rtsp://localhost:8554/camera` como entrada.
 
-## Rede
+## Rede e hotspot
 
 A descoberta automática usa UDP `37020` e a câmera publica por SRT em UDP `8890`.
 
-Se o celular não encontrar o computador, confirme primeiro se o botão **Configurar firewall** foi executado. Algumas redes Wi-Fi ativam isolamento entre clientes/APs; nesse caso os dispositivos podem ter internet, mas não conseguem conversar diretamente entre si.
+A versão 0.1.1 tenta broadcast global, broadcast informado pelo Wi-Fi e os endereços de broadcast de todas as interfaces de rede do Android. Isso melhora o funcionamento quando há múltiplas interfaces ou quando o celular está atuando como hotspot.
+
+Ainda assim, hotspots e algumas redes Wi-Fi podem bloquear ou limitar broadcast/isolamento entre clientes. Nesses casos, o **QR de pareamento é o fallback recomendado**, porque não depende da descoberta UDP: o QR contém o IP atual do PC, a porta SRT e o Stream ID e abre o Estaca Cast Camera via `estacacast://pair`.
+
+Se o QR parear mas a câmera não conectar, confirme se o botão **Configurar firewall** foi executado no PC e se a porta UDP `8890` está liberada.
 
 ## Build
 
