@@ -111,12 +111,23 @@ $('qrBtn').onclick = async () => {
   });
 };
 $('cameraQrBtn').onclick = async () => {
-  const state = currentState || await window.estacaCast.getState();
+  let state = currentState || await window.estacaCast.getState();
+
+  if (!state.mediaOnline) {
+    const start = await window.estacaCast.startLocal();
+    if (!start.ok) {
+      alert(`Não foi possível iniciar o MediaMTX para receber a câmera.\n\n${start.error || 'Erro desconhecido.'}`);
+      return;
+    }
+    state = await window.estacaCast.getState();
+    renderState(state);
+  }
+
   const name = `Estaca Cast — ${state.localIp || 'PC'}`;
   const pairUrl = `estacacast://pair?ip=${encodeURIComponent(state.localIp)}&port=${encodeURIComponent(state.cameraSrtPort || 8890)}&streamid=${encodeURIComponent(state.cameraStreamId || 'publish:camera')}&name=${encodeURIComponent(name)}`;
   await showQr({
     title: 'Parear câmera Android',
-    hint: 'No celular, abra a câmera ou Google Lens, leia este QR e toque no link Estaca Cast. Não é necessário digitar IP.',
+    hint: 'O receptor da câmera já está ativo. No celular, abra a câmera ou Google Lens, leia este QR e toque no link Estaca Cast. Não é necessário digitar IP.',
     value: pairUrl,
   });
 };
