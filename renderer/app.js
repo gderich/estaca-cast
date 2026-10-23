@@ -17,12 +17,18 @@ function renderState(s) {
   $('whipUrl').textContent = s.whipUrl;
   $('localUrl').textContent = s.localUrl;
   $('viewerCount').textContent = String(s.viewers || 0);
+  $('cameraRtspUrl').textContent = s.cameraRtspUrl || 'rtsp://localhost:8554/camera';
+  $('cameraStatus').textContent = s.cameraPublishing ? 'Conectada' : 'Desconectada';
+  $('cameraStatus').className = s.cameraPublishing ? 'good' : '';
 
   const rows = [
     ['Versão', s.version],
     ['MediaMTX', s.mediaOnline ? 'Online' : 'Parado'],
     ['OBS instalado', s.obsInstalled ? 'Sim' : 'Não'],
     ['OBS publicando', s.obsPublishing ? 'Sim' : 'Não'],
+    ['Câmera móvel', s.cameraPublishing ? 'Conectada' : 'Desconectada'],
+    ['Fonte da câmera no OBS', s.cameraRtspUrl || 'rtsp://localhost:8554/camera'],
+    ['SRT da câmera', `UDP ${s.cameraSrtPort || 8890}`],
     ['YouTube', s.youtubeSending ? 'FFmpeg enviando' : 'Parado'],
     ['IPv4 local', s.localIp],
     ['Player local', s.localUrl],
@@ -60,6 +66,7 @@ $('startLocalBtn').onclick = async () => { const r = await window.estacaCast.sta
 $('stopAllBtn').onclick = async () => { await window.estacaCast.stopAll(); refresh(); };
 $('copyLocalBtn').onclick = () => window.estacaCast.copyText(currentState?.localUrl || $('localUrl').textContent);
 $('openPlayerBtn').onclick = () => window.estacaCast.openPlayer();
+$('copyCameraBtn').onclick = () => window.estacaCast.copyText(currentState?.cameraRtspUrl || $('cameraRtspUrl').textContent);
 $('qrBtn').onclick = async () => {
   const url = currentState?.localUrl || $('localUrl').textContent;
   $('qrImage').src = await window.estacaCast.createQr(url);
