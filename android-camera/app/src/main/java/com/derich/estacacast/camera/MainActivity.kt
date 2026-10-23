@@ -2,6 +2,7 @@ package com.derich.estacacast.camera
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
@@ -41,7 +42,13 @@ class MainActivity : Activity(), ConnectChecker {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
         requestCameraIfNeeded()
-        discoverServer()
+        if (!handlePairIntent(intent)) discoverServer()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePairIntent(intent)
     }
 
     private fun buildUi() {
@@ -62,7 +69,7 @@ class MainActivity : Activity(), ConnectChecker {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.START
             setPadding(28, 22, 28, 22)
-            setBackgroundColor(Color.argb(185, 5, 17, 35))
+            setBackgroundColor(Color.argb(200, 5, 17, 35))
         }
 
         val title = TextView(this).apply {
@@ -84,9 +91,17 @@ class MainActivity : Activity(), ConnectChecker {
             text = "Procurando Estaca Cast na rede..."
             setTextColor(Color.LTGRAY)
             textSize = 13f
-            setPadding(0, 4, 0, 12)
+            setPadding(0, 4, 0, 5)
         }
         panel.addView(serverText)
+
+        val fallbackText = TextView(this).apply {
+            text = "Se não encontrar: no PC use “QR de pareamento” e escaneie com a câmera/Google Lens do celular."
+            setTextColor(Color.rgb(220, 185, 120))
+            textSize = 12f
+            setPadding(0, 0, 0, 12)
+        }
+        panel.addView(fallbackText)
 
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -132,6 +147,32 @@ class MainActivity : Activity(), ConnectChecker {
         setContentView(root)
     }
 
+    private fun handlePairIntent(intent: Intent?): Boolean {
+        val uri = intent?.data ?: return false
+        if (uri.scheme != "estacacast" || uri.host != "pair") return false
+
+        val ip = uri.getQueryParameter("ip")?.trim().orEmpty()
+        if (ip.isBlank()) {
+            showStatus("QR inválido: IP não encontrado.", true)
+            return false
+        }
+
+        val port = uri.getQueryParameter("port")?.toIntOrNull() ?: 8890
+        val streamId = uri.getQueryParameter("streamid")?.trim().orEmpty().ifBlank { "publish:camera" }
+        val name = uri.getQueryParameter("name")?.trim().orEmpty().ifBlank { "Estaca Cast (QR)" }
+
+        server = EstacaCastServer(
+            name = name,
+            ip = ip,
+            srtPort = port,
+            streamId = streamId,
+        )
+        serverText.text = "✓ Pareado por QR • $ip"
+        connectButton.isEnabled = true
+        showStatus("Pareamento concluído. Pronto para conectar.")
+        return true
+    }
+
     private fun requestCameraIfNeeded() {
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startPreview()
@@ -165,7 +206,7 @@ class MainActivity : Activity(), ConnectChecker {
             preview.postDelayed({
                 runCatching {
                     if (camera?.isOnPreview != true) camera?.startPreview()
-                    showStatus("Câmera pronta.")
+                    showStatus(if (server != null) "Pronto para conectar." else "Câmera pronta.")
                 }.onFailure {
                     showStatus("Erro ao abrir câmera: ${it.message}", true)
                 }
@@ -188,9 +229,9 @@ class MainActivity : Activity(), ConnectChecker {
                     connectButton.isEnabled = true
                     showStatus("Pronto para conectar.")
                 } else {
-                    serverText.text = "Estaca Cast não encontrado. Verifique se o programa está aberto no PC."
+                    serverText.text = "PC não encontrado automaticamente. Use o QR de pareamento no Estaca Cast do PC."
                     connectButton.isEnabled = false
-                    showStatus("PC não encontrado.", true)
+                    showStatus("Descoberta automática indisponível nesta rede.", true)
                 }
             }
         }
