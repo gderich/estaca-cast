@@ -10,8 +10,8 @@ android {
         applicationId = "com.derich.estacacast.camera"
         minSdk = 23
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.3.2"
     }
 
     compileOptions {
