@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import org.json.JSONObject
 import java.io.File
@@ -79,31 +80,104 @@ object AppUpdater {
         }
     }
 
+    /**
+     * Faz o download dentro do próprio app em vez de depender do DownloadManager.
+     * Isso evita a perda do broadcast DOWNLOAD_COMPLETE em versões recentes do Android.
+     * Mantemos um id compatível com o fluxo já usado pela Activity e disparamos o
+     * broadcast internamente quando o arquivo termina de baixar.
+     */
     fun download(activity: Activity, info: UpdateInfo): Long {
         val downloadsDir = activity.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
             ?: throw IllegalStateException("Pasta de downloads indisponível.")
         downloadsDir.mkdirs()
+
         val file = File(downloadsDir, "EstacaCast-Camera-${info.version}.apk")
+        val partial = File(downloadsDir, "${file.name}.part")
         if (file.exists()) file.delete()
+        if (partial.exists()) partial.delete()
 
-        val request = DownloadManager.Request(Uri.parse(info.apkUrl)).apply {
-            setTitle("Estaca Cast Camera ${info.version}")
-            setDescription("Baixando atualização…")
-            setMimeType("application/vnd.android.package-archive")
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            setDestinationUri(Uri.fromFile(file))
-            setAllowedOverMetered(true)
-            setAllowedOverRoaming(false)
-        }
-
-        val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val id = manager.enqueue(request)
+        val id = System.currentTimeMillis()
         activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putLong(PREF_DOWNLOAD_ID, id)
             .putString(PREF_APK_PATH, file.absolutePath)
             .putString(PREF_VERSION, info.version)
             .apply()
+
+        executor.execute {
+            val result = runCatching {
+                downloadFile(info.apkUrl, partial)
+                if (partial.length() < 100_000L) {
+                    throw IllegalStateException("O APK baixado parece incompleto (${partial.length()} bytes).")
+                }
+                if (!partial.renameTo(file)) {
+                    partial.copyTo(file, overwrite = true)
+                    partial.delete()
+                }
+            }
+
+            activity.runOnUiThread {
+                result.onSuccess {
+                    // Reaproveita o receiver já existente na Activity, mas agora o evento
+                    // vem do próprio app e não depende do sistema entregar o broadcast.
+                    activity.sendBroadcast(
+                        Intent(DownloadManager.ACTION_DOWNLOAD_COMPLETE).apply {
+                            setPackage(activity.packageName)
+                            putExtra(DownloadManager.EXTRA_DOWNLOAD_ID, id)
+                        }
+                    )
+                }.onFailure { error ->
+                    partial.delete()
+                    file.delete()
+                    Toast.makeText(
+                        activity,
+                        "Falha ao baixar atualização: ${error.message}",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
+
         return id
+    }
+
+    private fun downloadFile(initialUrl: String, destination: File) {
+        var currentUrl = initialUrl
+
+        repeat(8) {
+            val connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                connectTimeout = 15_000
+                readTimeout = 60_000
+                requestMethod = "GET"
+                setRequestProperty("Accept", "application/octet-stream")
+                setRequestProperty("User-Agent", "EstacaCast-Camera-Updater")
+            }
+
+            try {
+                val code = connection.responseCode
+                if (code in 300..399) {
+                    val location = connection.getHeaderField("Location")
+                        ?: throw IllegalStateException("Redirect do GitHub sem destino.")
+                    currentUrl = URL(URL(currentUrl), location).toString()
+                    return@repeat
+                }
+
+                if (code !in 200..299) {
+                    throw IllegalStateException("Download respondeu HTTP $code")
+                }
+
+                connection.inputStream.use { input ->
+                    destination.outputStream().buffered().use { output ->
+                        input.copyTo(output, bufferSize = 64 * 1024)
+                    }
+                }
+                return
+            } finally {
+                connection.disconnect()
+            }
+        }
+
+        throw IllegalStateException("Muitos redirecionamentos ao baixar o APK.")
     }
 
     fun handleDownloadComplete(activity: Activity, downloadId: Long): Boolean {
@@ -114,23 +188,9 @@ object AppUpdater {
 
     fun installPending(activity: Activity): Boolean {
         val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val downloadId = prefs.getLong(PREF_DOWNLOAD_ID, -1L)
         val path = prefs.getString(PREF_APK_PATH, null) ?: return false
-        if (downloadId <= 0L) return false
-
-        val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val cursor = manager.query(DownloadManager.Query().setFilterById(downloadId))
-        val successful = cursor.use {
-            if (!it.moveToFirst()) false
-            else {
-                val statusIndex = it.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                statusIndex >= 0 && it.getInt(statusIndex) == DownloadManager.STATUS_SUCCESSFUL
-            }
-        }
-        if (!successful) return false
-
         val file = File(path)
-        if (!file.exists()) return false
+        if (!file.exists() || file.length() < 100_000L) return false
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !activity.packageManager.canRequestPackageInstalls()) {
             activity.startActivity(
