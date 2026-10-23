@@ -13,7 +13,7 @@
         <h1>ESTACA CAST</h1>
         <p>Transmissão local rápida + YouTube sem complicação</p>
       </div>
-      <div class="version" id="version">v0.3.1</div>
+      <div class="version" id="version">v0.3.7</div>
     </header>
 
     <section class="status-grid">
@@ -80,9 +80,11 @@
         <div class="button-row">
           <button class="primary" id="downloadAndroidBtn">Baixar APK Android</button>
           <button id="cameraQrBtn">QR de pareamento</button>
+          <button id="addCameraObsBtn">Adicionar câmera ao OBS</button>
           <button id="copyCameraBtn">Copiar fonte para o OBS</button>
         </div>
-        <p class="hint">No Android, abra a câmera/Google Lens, leia o <b>QR de pareamento</b> e toque no link. O Estaca Cast Camera abrirá já com IP, porta e stream configurados. Antes, clique em <b>Configurar firewall</b>.</p>
+        <div class="notice" id="cameraObsNotice">O Estaca Cast pode criar automaticamente a fonte <b>Estaca Cast Camera</b> na cena atual do OBS.</div>
+        <p class="hint">No Android, use <b>LER QR</b> dentro do Estaca Cast Camera. Depois de conectar o celular, deixe o OBS aberto e clique em <b>Adicionar câmera ao OBS</b>. O Estaca Cast usa o WebSocket local do OBS e configura a fonte RTSP automaticamente.</p>
       </div>
     </section>
 
