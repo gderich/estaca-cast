@@ -43,6 +43,18 @@ jobs:
             Write-Host "Tag $tag já existe."
           }
 
+      - name: Validar JavaScript
+        shell: pwsh
+        run: |
+          node --check main.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check preload.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check renderer/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check services/runtime.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Instalar dependências
         run: npm install
 
