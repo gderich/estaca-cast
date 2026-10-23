@@ -2,10 +2,55 @@
 
 Aplicativo Android complementar ao Estaca Cast Desktop.
 
-Objetivo: localizar automaticamente o Estaca Cast na rede local e publicar a câmera do celular por SRT no caminho `camera`, sem exigir configuração manual de IP, porta ou stream ID.
+<p align="left">
+  <a href="https://github.com/gderich/estaca-cast/releases/latest/download/EstacaCast-Camera.apk">
+    <img alt="Baixar APK" src="https://img.shields.io/badge/BAIXAR%20APK-ANDROID-3ddc84?style=for-the-badge&logo=android&logoColor=111111">
+  </a>
+  <a href="https://github.com/gderich/estaca-cast/actions/workflows/android-ci.yml">
+    <img alt="Build Android" src="https://github.com/gderich/estaca-cast/actions/workflows/android-ci.yml/badge.svg">
+  </a>
+</p>
 
-Fluxo previsto:
+O objetivo é localizar automaticamente o Estaca Cast na rede local e publicar a câmera do celular por SRT no caminho `camera`, sem exigir configuração manual de IP, porta ou Stream ID.
 
-`Android -> SRT/UDP 8890 -> MediaMTX -> rtsp://localhost:8554/camera -> OBS`
+## Fluxo
 
-A primeira versão é um MVP de validação e usa build debug assinado pelo Android SDK para facilitar testes internos.
+```text
+Android
+  ↓ SRT / UDP 8890
+MediaMTX
+  ↓
+rtsp://localhost:8554/camera
+  ↓
+OBS
+```
+
+## Como usar
+
+1. Instale e abra o Estaca Cast no Windows.
+2. Clique em **Preparar computador**.
+3. Clique em **Configurar firewall** e autorize como administrador.
+4. Clique em **Iniciar local** para iniciar o MediaMTX.
+5. Instale o APK no Android e permita acesso à câmera.
+6. Mantenha celular e computador na mesma rede local.
+7. Abra o Estaca Cast Camera e conecte à instância encontrada automaticamente.
+8. No OBS, adicione uma **Fonte de mídia**, desmarque **Arquivo local** e use `rtsp://localhost:8554/camera` como entrada.
+
+## Rede
+
+A descoberta automática usa UDP `37020` e a câmera publica por SRT em UDP `8890`.
+
+Se o celular não encontrar o computador, confirme primeiro se o botão **Configurar firewall** foi executado. Algumas redes Wi-Fi ativam isolamento entre clientes/APs; nesse caso os dispositivos podem ter internet, mas não conseguem conversar diretamente entre si.
+
+## Build
+
+O projeto usa:
+
+- Java 17
+- Android Gradle Plugin 9.3.2
+- Gradle 9.7.1
+- RootEncoder 2.8.1
+
+O CI está em `.github/workflows/android-ci.yml`. Builds aprovados geram o artefato `EstacaCast-Camera-debug`; releases públicas anexam o arquivo fixo `EstacaCast-Camera.apk`.
+
+> A versão atual é um MVP de validação e usa assinatura debug do Android SDK para facilitar testes internos.
