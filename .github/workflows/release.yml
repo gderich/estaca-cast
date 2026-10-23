@@ -3,8 +3,6 @@ name: Build e publicar Estaca Cast
 on:
   workflow_dispatch:
   push:
-    tags:
-      - 'v*.*.*'
     branches:
       - main
     paths:
@@ -20,11 +18,29 @@ jobs:
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Garantir tag da versão
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = "v$version"
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          $remoteTag = git ls-remote --tags origin "refs/tags/$tag"
+          if (-not $remoteTag) {
+            git tag $tag $env:GITHUB_SHA
+            git push origin $tag
+          } else {
+            Write-Host "Tag $tag já existe."
+          }
 
       - name: Instalar dependências
         run: npm install
@@ -63,12 +79,8 @@ jobs:
       - name: Definir tag da Release
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
-          else
-            VERSION=$(python -c "import json; print(json.load(open('package.json'))['version'])")
-            echo "RELEASE_TAG=v${VERSION}" >> "$GITHUB_ENV"
-          fi
+          VERSION=$(python -c "import json; print(json.load(open('package.json'))['version'])")
+          echo "RELEASE_TAG=v${VERSION}" >> "$GITHUB_ENV"
 
       - name: Anexar APK à Release
         uses: softprops/action-gh-release@v2
